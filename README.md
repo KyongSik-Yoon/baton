@@ -65,7 +65,7 @@ Implementation goes to workers pinned by frontmatter model ID, so the tiers hold
 | --- | --- | --- | --- |
 | `fable-router:coder-opus48` | `claude-opus-4-8` | high | complex implementation, cross-file refactors, tricky debugging |
 | `fable-router:coder-sonnet` | `claude-sonnet-5` | medium | standard implementation, test writing, moderate fixes |
-| `fable-router:scout` | Haiku 4.5 | low | read-only recon (built-in Explore would inherit the expensive session model) |
+| `fable-router:scout` | Haiku 4.5 | low | mechanical read-only recon (built-in Explore would inherit the expensive session model) |
 | `fable-router:advisor` | `fable` | high | persistent senior advisor, read-only |
 
 Fable is consulted only at mandatory triggers (architecture decisions, twice-failed validation after a tier escalation, conflicting evidence, final review of high-consequence changes), as **one persistent advisor agent** continued via SendMessage rather than respawned per question. With `advisor=none` — e.g. once your Fable quota is spent — the triggers resolve via AskUserQuestion instead.
@@ -83,3 +83,4 @@ Notes:
 - Requires the plugin install (hooks). Manual installs must wire `orchestrator-guard.sh` (PreToolUse, matcher `Write|Edit|NotebookEdit|Bash`) and `orchestrator-mode.sh` (UserPromptSubmit) in settings themselves.
 - Don't run it together with fable-router auto mode — one assumes a Fable parent, the other an Opus parent. `/opus-orchestrator on` warns if both flags are set.
 - The Bash filter aims to make bypasses hard, not impossible: the enforcement target is model drift, not an adversary.
+- Why the scout stays on Haiku: recon cost is dominated by input tokens, where effort settings don't help and Sonnet 5's new tokenizer (~30% more tokens for the same text) widens the sticker 3x price gap to ~4x in practice (~2.6x under the intro pricing that ends 2026-08-31). Recon that needs interpretation rather than scanning exceeds Haiku's floor — route it to `fable-router:worker-low` with `model: sonnet`.
