@@ -20,7 +20,7 @@ cat <<JSON
 {
   "hookSpecificOutput": {
     "hookEventName": "UserPromptSubmit",
-    "additionalContext": "opus-orchestrator mode is ON — you are the orchestrator: a PreToolUse hook blocks your direct file edits and mutating Bash. Decompose the task, delegate implementation to opus-5-router:coder-opus48 (complex) or opus-5-router:coder-sonnet (standard), use opus-5-router:scout for cheap read-only recon, and review the resulting diffs yourself. ${ADV} Follow the opus-orchestrator skill's rules. If this turn is trivial or conversational, just answer directly without mentioning the orchestrator."
+    "additionalContext": "opus-orchestrator mode is ON — you are the orchestrator: a PreToolUse hook blocks your direct file edits and mutating Bash. Decompose the task, delegate implementation to opus-5-router:coder-opus48 (complex) or opus-5-router:coder-sonnet (standard), use opus-5-router:scout for mechanical read-only recon (opus-5-router:scout-sonnet when the recon needs interpretation), and review the resulting diffs yourself. ${ADV} Follow the opus-orchestrator skill's rules. If this turn is trivial or conversational, just answer directly without mentioning the orchestrator."
   },
   "suppressOutput": true
 }

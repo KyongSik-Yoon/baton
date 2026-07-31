@@ -6,7 +6,7 @@ description: Run the session's main model (intended - Opus 5) as a pure orchestr
 
 # Opus Orchestrator
 
-Invert the fable-router skill: the session's main model (intended: Opus 5) is a pure orchestrator — it decomposes, delegates, reviews, and integrates, but never edits. Enforcement is mechanical, not aspirational: while the mode flag exists, the plugin's `PreToolUse` hook denies the main agent's `Write`/`Edit`/`NotebookEdit` and any Bash beyond read-only inspection, test/lint/typecheck commands, and the flag-file management below. Subagent calls pass the guard untouched (their hook input carries `agent_id`).
+The session's main model (intended: Opus 5) is a pure orchestrator — it decomposes, delegates, reviews, and integrates, but never edits. Enforcement is mechanical, not aspirational: while the mode flag exists, the plugin's `PreToolUse` hook denies the main agent's `Write`/`Edit`/`NotebookEdit` and any Bash beyond read-only inspection, test/lint/typecheck commands, and the flag-file management below. Subagent calls pass the guard untouched (their hook input carries `agent_id`).
 
 ## Prerequisite
 
@@ -16,7 +16,7 @@ This mode assumes the session model is Opus 5 — the skill cannot switch models
 
 State is the flag file `~/.claude/opus-orchestrator`. Handle arguments before anything else; each command confirms the new state in one line and stops.
 
-- **`on [advisor=fable|none]`** — write the flag: `printf 'advisor=%s\n' <value> > ~/.claude/opus-orchestrator` (default `fable`). If `~/.claude/fable-router-auto` exists, warn that the two auto modes conflict (Fable-parent routing vs Opus-parent orchestration) and ask which to keep before proceeding.
+- **`on [advisor=fable|none]`** — write the flag: `printf 'advisor=%s\n' <value> > ~/.claude/opus-orchestrator` (default `fable`). If `~/.claude/fable-router-auto` exists (the separate fable-router plugin's auto mode), warn that the two modes conflict (Fable-parent routing vs Opus-parent orchestration) and ask which to keep before proceeding.
 - **`off`** — `rm -f ~/.claude/opus-orchestrator`.
 - **`advisor fable|none`** — rewrite the flag with the new value; mode stays on.
 - **`status`** — report flag existence and advisor setting (`test -f` / `cat`).
@@ -28,7 +28,7 @@ These exact command forms are allowlisted in the guard; do not improvise variant
 With the mode on, run every non-trivial task through this loop. Trivial or conversational turns are answered directly — routing overhead would cost more than it saves.
 
 1. **Decompose** the task into stages: recon, design, implementation, verification, integration — as applicable. Prefer the fewest stages that keep context packets narrow.
-2. **Recon** — never via built-in Explore, which inherits the expensive session model. Mechanical recon (file discovery, pattern scanning, bulk evidence gathering) goes to `opus-5-router:scout` (pinned Haiku — recon cost is input-token-dominated, where Haiku is ~4x cheaper in practice and effort settings don't help). Recon that needs interpretation or synthesis (ambiguous code, scattered evidence, hypothesis forming) exceeds Haiku's floor: use `opus-5-router:worker-low` with `model: sonnet` instead. A recon that would exceed the scout's 200K context is a decomposition failure — split it across parallel scouts rather than upgrading the model.
+2. **Recon** — never via built-in Explore, which inherits the expensive session model. Mechanical recon (file discovery, pattern scanning, bulk evidence gathering) goes to `opus-5-router:scout` (pinned Haiku — recon cost is input-token-dominated, where Haiku is ~4x cheaper in practice and effort settings don't help). Recon that needs interpretation or synthesis (ambiguous code, scattered evidence, hypothesis forming) exceeds Haiku's floor: use `opus-5-router:scout-sonnet` (Sonnet 5, effort low) instead. A recon that would exceed the scout's 200K context is a decomposition failure — split it across parallel scouts rather than upgrading the model.
 3. **Design** stays with you, the orchestrator. If the design decision meets an advisor trigger (below), consult before committing to it.
 4. **Delegate implementation**: `opus-5-router:coder-sonnet` (Sonnet 5, effort medium) for standard work with clear acceptance criteria; `opus-5-router:coder-opus48` (Opus 4.8, effort high) for complex implementation, cross-file refactors, tricky debugging. Each worker gets a narrow packet: objective, evidence (paths, not dumps), allowed write surface, non-goals, validation command, output shape. Parallel independent stages go in one message; use `isolation: "worktree"` only when workers mutate files in parallel.
 5. **Review** the diffs yourself — read-only git and test runs are allowed to you. Judge sufficiency; do not rubber-stamp worker self-reports.

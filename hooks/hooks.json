@@ -1,14 +1,9 @@
 {
-  "description": "fable-router auto mode: nudge parent turns into the routing skill. opus-orchestrator mode: inject the orchestrator posture each turn and block main-agent mutations at the tool layer.",
+  "description": "opus-orchestrator mode: inject the orchestrator posture each turn and block main-agent mutations at the tool layer while the flag file exists.",
   "hooks": {
     "UserPromptSubmit": [
       {
         "hooks": [
-          {
-            "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/auto-route.sh",
-            "timeout": 5
-          },
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/orchestrator-mode.sh",
