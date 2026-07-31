@@ -1,5 +1,5 @@
 {
-  "description": "opus-orchestrator mode: inject the orchestrator posture each turn and block main-agent mutations at the tool layer while the flag file exists.",
+  "description": "opus5-router mode: inject the orchestrator posture each turn and block main-agent mutations at the tool layer while the flag file exists.",
   "hooks": {
     "UserPromptSubmit": [
       {

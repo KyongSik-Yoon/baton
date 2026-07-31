@@ -1,7 +1,7 @@
 ---
-name: opus-orchestrator
+name: opus5-router
 argument-hint: "[on [advisor=fable|none] | off | advisor fable|none | status]"
-description: Run the session's main model (intended - Opus 5) as a pure orchestrator that thinks, decomposes, delegates, and reviews but never edits directly - a PreToolUse hook blocks its Write/Edit/NotebookEdit and mutating Bash while the mode flag exists. Implementation goes to pinned workers (coder-opus48, coder-sonnet, scout on Haiku); Fable 5 is consulted only as a persistent advisor at mandatory escalation triggers, or disabled with advisor=none once Fable quota is spent. Use only when the user explicitly invokes /opus-orchestrator, toggles the mode, or when the orchestrator-mode hook injects its directive. Do not invoke implicitly for ordinary tasks.
+description: Run the session's main model (intended - Opus 5) as a pure orchestrator that thinks, decomposes, delegates, and reviews but never edits directly - a PreToolUse hook blocks its Write/Edit/NotebookEdit and mutating Bash while the mode flag exists. Implementation goes to pinned workers (coder-opus48, coder-sonnet, scout on Haiku); Fable 5 is consulted only as a persistent advisor at mandatory escalation triggers, or disabled with advisor=none once Fable quota is spent. Use only when the user explicitly invokes /opus5-router, toggles the mode, or when the orchestrator-mode hook injects its directive. Do not invoke implicitly for ordinary tasks.
 ---
 
 # Opus Orchestrator
@@ -14,10 +14,10 @@ This mode assumes the session model is Opus 5 — the skill cannot switch models
 
 ## Commands
 
-State is the flag file `~/.claude/opus-orchestrator`. Handle arguments before anything else; each command confirms the new state in one line and stops.
+State is the flag file `~/.claude/opus5-router`. Handle arguments before anything else; each command confirms the new state in one line and stops.
 
-- **`on [advisor=fable|none]`** — write the flag: `printf 'advisor=%s\n' <value> > ~/.claude/opus-orchestrator` (default `fable`). If `~/.claude/fable-router-auto` exists (the separate fable-router plugin's auto mode), warn that the two modes conflict (Fable-parent routing vs Opus-parent orchestration) and ask which to keep before proceeding.
-- **`off`** — `rm -f ~/.claude/opus-orchestrator`.
+- **`on [advisor=fable|none]`** — write the flag: `printf 'advisor=%s\n' <value> > ~/.claude/opus5-router` (default `fable`). If `~/.claude/fable-router-auto` exists (the separate fable-router plugin's auto mode), warn that the two modes conflict (Fable-parent routing vs Opus-parent orchestration) and ask which to keep before proceeding.
+- **`off`** — `rm -f ~/.claude/opus5-router`.
 - **`advisor fable|none`** — rewrite the flag with the new value; mode stays on.
 - **`status`** — report flag existence and advisor setting (`test -f` / `cat`).
 

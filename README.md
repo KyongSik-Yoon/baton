@@ -8,7 +8,7 @@ Sibling project: the [fable-router](https://github.com/KyongSik-Yoon/fable-route
 
 ## How it works
 
-Enforcement is mechanical, not prompt-based. While the flag file `~/.claude/opus-orchestrator` exists, the plugin's `PreToolUse` hook (`hooks/orchestrator-guard.sh`) denies the **main agent's** `Write`/`Edit`/`NotebookEdit` and any Bash beyond read-only inspection and test/lint commands (`hooks/orchestrator-bash-filter.py`, default-deny). Subagent calls pass untouched — their hook input carries `agent_id`, the main agent's never does. Deny reasons steer the model toward delegation. A `UserPromptSubmit` hook (`hooks/orchestrator-mode.sh`) injects the orchestrator posture each turn.
+Enforcement is mechanical, not prompt-based. While the flag file `~/.claude/opus5-router` exists, the plugin's `PreToolUse` hook (`hooks/orchestrator-guard.sh`) denies the **main agent's** `Write`/`Edit`/`NotebookEdit` and any Bash beyond read-only inspection and test/lint commands (`hooks/orchestrator-bash-filter.py`, default-deny). Subagent calls pass untouched — their hook input carries `agent_id`, the main agent's never does. Deny reasons steer the model toward delegation. A `UserPromptSubmit` hook (`hooks/orchestrator-mode.sh`) injects the orchestrator posture each turn.
 
 Implementation goes to workers pinned by frontmatter model ID, so the tiers hold regardless of what the `opus` alias resolves to:
 
@@ -25,11 +25,11 @@ Fable is consulted only at mandatory triggers (architecture decisions, twice-fai
 ## Usage
 
 ```
-/opus-orchestrator on              # advisor=fable (default)
-/opus-orchestrator on advisor=none # pure Opus mode, no Fable at all
-/opus-orchestrator advisor none    # switch advisor while staying on
-/opus-orchestrator status
-/opus-orchestrator off
+/opus5-router on              # advisor=fable (default)
+/opus5-router on advisor=none # pure Opus mode, no Fable at all
+/opus5-router advisor none    # switch advisor while staying on
+/opus5-router status
+/opus5-router off
 ```
 
 ## Install
@@ -44,6 +44,6 @@ The plugin install is required for the mode to actually enforce anything — the
 ## Notes
 
 - The skill cannot switch your session model. Pin it per project with `"model": "claude-opus-5"` in `.claude/settings.json`, or use `/model`.
-- Don't run it together with the fable-router plugin's auto mode — one assumes a Fable parent, the other an Opus parent. `/opus-orchestrator on` warns if both flags are set.
+- Don't run it together with the fable-router plugin's auto mode — one assumes a Fable parent, the other an Opus parent. `/opus5-router on` warns if both flags are set.
 - The Bash filter aims to make bypasses hard, not impossible: the enforcement target is model drift, not an adversary.
 - Why the scout stays on Haiku: recon cost is dominated by input tokens, where effort settings don't help and Sonnet 5's new tokenizer (~30% more tokens for the same text) widens the sticker 3x price gap to ~4x in practice (~2.6x under the intro pricing that ends 2026-08-31). Recon that needs interpretation rather than scanning exceeds Haiku's floor — route it to `opus-5-router:scout-sonnet`.

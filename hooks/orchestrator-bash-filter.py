@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bash policy for opus-orchestrator's main-agent guard.
+"""Bash policy for opus5-router's main-agent guard.
 
 stdin: the PreToolUse JSON for a Bash call from the MAIN agent (the guard has
 already checked the flag file and filtered out subagent calls). stdout: empty
@@ -35,7 +35,7 @@ RUNNERS = {
     "jest", "vitest", "playwright", "rspec", "tox", "shellcheck",
 }
 NPM_RUN_OK = re.compile(r"^(test|lint|typecheck|check|coverage)([:.].*)?$")
-FLAG_PATH = r"(~|\$HOME|\$\{HOME\})/\.claude/opus-orchestrator"
+FLAG_PATH = r"(~|\$HOME|\$\{HOME\})/\.claude/opus5-router"
 # The skill itself toggles the flag file from the main agent, so these exact
 # management forms must pass even though touch/rm/redirection are otherwise out.
 FLAG_MGMT = re.compile(

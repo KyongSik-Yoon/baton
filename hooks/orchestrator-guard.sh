@@ -1,8 +1,8 @@
 #!/bin/sh
-# opus-orchestrator: while the flag file exists, the MAIN agent must not mutate
+# opus5-router: while the flag file exists, the MAIN agent must not mutate
 # anything — it thinks, reviews, and delegates. Subagent tool calls pass through
 # untouched: their hook input carries agent_id, the main agent's never does.
-FLAG="${HOME}/.claude/opus-orchestrator"
+FLAG="${HOME}/.claude/opus5-router"
 [ -f "$FLAG" ] || exit 0
 
 input=$(cat)

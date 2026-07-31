@@ -8,7 +8,7 @@
 
 ## 동작 방식
 
-강제는 프롬프트가 아니라 메커니즘이다. 플래그 파일 `~/.claude/opus-orchestrator`가 존재하는 동안 플러그인의 `PreToolUse` 훅(`hooks/orchestrator-guard.sh`)이 **메인 에이전트의** `Write`/`Edit`/`NotebookEdit`와, 읽기 전용 조회·테스트/린트 명령을 벗어나는 모든 Bash를 거부한다(`hooks/orchestrator-bash-filter.py`, 기본 거부). 서브에이전트 호출은 그대로 통과한다 — 훅 입력에 `agent_id`가 실려 오는 쪽이 서브에이전트고, 메인 에이전트에는 절대 없다. 거부 사유 문구가 모델을 위임 쪽으로 유도한다. `UserPromptSubmit` 훅(`hooks/orchestrator-mode.sh`)은 매 턴 오케스트레이터 태세를 주입한다.
+강제는 프롬프트가 아니라 메커니즘이다. 플래그 파일 `~/.claude/opus5-router`가 존재하는 동안 플러그인의 `PreToolUse` 훅(`hooks/orchestrator-guard.sh`)이 **메인 에이전트의** `Write`/`Edit`/`NotebookEdit`와, 읽기 전용 조회·테스트/린트 명령을 벗어나는 모든 Bash를 거부한다(`hooks/orchestrator-bash-filter.py`, 기본 거부). 서브에이전트 호출은 그대로 통과한다 — 훅 입력에 `agent_id`가 실려 오는 쪽이 서브에이전트고, 메인 에이전트에는 절대 없다. 거부 사유 문구가 모델을 위임 쪽으로 유도한다. `UserPromptSubmit` 훅(`hooks/orchestrator-mode.sh`)은 매 턴 오케스트레이터 태세를 주입한다.
 
 구현은 frontmatter에 모델 ID를 핀 고정한 워커가 맡는다 — `opus` 별칭이 무엇으로 해석되든 계층이 유지된다:
 
@@ -25,11 +25,11 @@ Fable은 의무 트리거(아키텍처 결정, 티어 상승 후 2회 연속 검
 ## 사용법
 
 ```
-/opus-orchestrator on              # advisor=fable (기본)
-/opus-orchestrator on advisor=none # Fable 없는 순수 Opus 모드
-/opus-orchestrator advisor none    # 모드 유지한 채 advisor만 전환
-/opus-orchestrator status
-/opus-orchestrator off
+/opus5-router on              # advisor=fable (기본)
+/opus5-router on advisor=none # Fable 없는 순수 Opus 모드
+/opus5-router advisor none    # 모드 유지한 채 advisor만 전환
+/opus5-router status
+/opus5-router off
 ```
 
 ## 설치
@@ -44,6 +44,6 @@ Fable은 의무 트리거(아키텍처 결정, 티어 상승 후 2회 연속 검
 ## 참고
 
 - 스킬이 세션 모델을 바꿔줄 수는 없다. 프로젝트 `.claude/settings.json`에 `"model": "claude-opus-5"`를 넣거나 `/model`로 직접 고정할 것.
-- fable-router 플러그인의 auto 모드와 동시에 켜지 말 것 — 하나는 Fable 부모, 하나는 Opus 부모를 전제한다. `/opus-orchestrator on`은 두 플래그가 겹치면 경고한다.
+- fable-router 플러그인의 auto 모드와 동시에 켜지 말 것 — 하나는 Fable 부모, 하나는 Opus 부모를 전제한다. `/opus5-router on`은 두 플래그가 겹치면 경고한다.
 - Bash 필터의 목표는 우회를 어렵게 만드는 것이지 불가능하게 만드는 것이 아니다: 강제 대상은 모델 드리프트지 공격자가 아니다.
 - 스카우트가 Haiku를 유지하는 이유: 정찰 비용은 input 토큰이 지배하는데 effort 설정은 input 비용을 줄여주지 못하고, Sonnet 5의 신형 토크나이저(같은 텍스트가 ~30% 더 많은 토큰)까지 겹치면 스티커 3배 가격 차가 실질 ~4배로 벌어진다(2026-08-31 종료되는 인트로 가격 기준으로도 ~2.6배). 스캔이 아니라 해석이 필요한 정찰은 Haiku의 floor를 넘으므로 `opus-5-router:scout-sonnet`으로 보낼 것.
