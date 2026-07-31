@@ -1,12 +1,12 @@
 {
-  "name": "fable-router",
-  "description": "Save Fable 5 usage by routing work across Claude models (Fable 5, Opus, Sonnet, Haiku) with profile-based, approval-gated delegation.",
-  "version": "0.4.0",
+  "name": "opus-5-router",
+  "description": "Run Opus 5 as a hook-enforced pure orchestrator: a PreToolUse hook blocks the main agent's edits and mutating Bash, implementation goes to workers pinned to Opus 4.8 / Sonnet 5 / Haiku, and Fable 5 is consulted only as a persistent advisor at mandatory escalation triggers.",
+  "version": "0.1.0",
   "author": {
     "name": "KyongSik Yoon"
   },
-  "homepage": "https://github.com/KyongSik-Yoon/fable-router",
-  "repository": "https://github.com/KyongSik-Yoon/fable-router",
+  "homepage": "https://github.com/KyongSik-Yoon/opus-5-router",
+  "repository": "https://github.com/KyongSik-Yoon/opus-5-router",
   "license": "MIT",
-  "keywords": ["claude", "router", "token-saving", "subagents", "skill"]
+  "keywords": ["claude", "orchestrator", "token-saving", "subagents", "hooks", "skill"]
 }
