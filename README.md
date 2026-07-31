@@ -1,8 +1,10 @@
-# fable-router
+# opus-5-router
 
 [README.ko.md](README.ko.md)
 
-Inspired by [gpt-5.6-router](https://github.com/volition79/gpt-5.6-router), ported to Claude Code. Saves Fable 5 (parent) tokens by routing delegable work stages to Opus/Sonnet/Haiku via the Agent tool's `model` override.
+A Claude Code plugin with two token-saving modes: the **fable-router** skill (Fable 5 as parent, routing delegable stages down to Opus/Sonnet/Haiku — documented first below) and **opus-orchestrator** mode (Opus 5 as a hook-enforced pure orchestrator, consulting Fable only as an advisor). Inspired by [gpt-5.6-router](https://github.com/volition79/gpt-5.6-router), ported to Claude Code.
+
+The fable-router skill saves Fable 5 (parent) tokens by routing delegable work stages to Opus/Sonnet/Haiku via the Agent tool's `model` override.
 
 ## Flow
 
@@ -24,20 +26,20 @@ Inspired by [gpt-5.6-router](https://github.com/volition79/gpt-5.6-router), port
 ### Claude Code (plugin marketplace)
 
 ```
-/plugin marketplace add KyongSik-Yoon/fable-router
-/plugin install fable-router@fable-router
+/plugin marketplace add KyongSik-Yoon/opus-5-router
+/plugin install opus-5-router@opus-5-router
 ```
 
 ### Manual (any Claude Code checkout)
 
 ```bash
-git clone https://github.com/KyongSik-Yoon/fable-router
-ln -s "$(pwd)/fable-router/skills/fable-router" ~/.claude/skills/fable-router
+git clone https://github.com/KyongSik-Yoon/opus-5-router
+ln -s "$(pwd)/opus-5-router/skills/fable-router" ~/.claude/skills/fable-router
 # effort-variant worker agents (skip if you only want model routing)
-for f in fable-router/agents/*.md; do ln -s "$(pwd)/$f" ~/.claude/agents/; done
+for f in opus-5-router/agents/*.md; do ln -s "$(pwd)/$f" ~/.claude/agents/; done
 ```
 
-Note: the manual install registers workers as `worker-low` etc. (no `fable-router:` prefix); the plugin install is the documented path.
+Note: the manual install registers workers as `worker-low` etc. (no `opus-5-router:` prefix); the plugin install is the documented path.
 
 ### Claude Desktop / claude.ai
 
@@ -55,7 +57,7 @@ Manual installs do not pick up the hook (symlinking the skill registers no hooks
 
 ## Opus orchestrator mode
 
-The inverse of fable-router: instead of Fable delegating down, an **Opus 5 session acts as a pure orchestrator** — it thinks, decomposes, delegates, and reviews, but never edits. Useful when Opus 5's direct coding underwhelms but its orchestration holds up, and when you want Fable spent only on judgment.
+The inverse of the fable-router skill: instead of Fable delegating down, an **Opus 5 session acts as a pure orchestrator** — it thinks, decomposes, delegates, and reviews, but never edits. Useful when Opus 5's direct coding underwhelms but its orchestration holds up, and when you want Fable spent only on judgment.
 
 Enforcement is mechanical, not prompt-based. While the flag file `~/.claude/opus-orchestrator` exists, the plugin's `PreToolUse` hook (`hooks/orchestrator-guard.sh`) denies the **main agent's** `Write`/`Edit`/`NotebookEdit` and any Bash beyond read-only inspection and test/lint commands (`hooks/orchestrator-bash-filter.py`, default-deny). Subagent calls pass untouched — their hook input carries `agent_id`, the main agent's never does. Deny reasons steer the model toward delegation. A `UserPromptSubmit` hook (`hooks/orchestrator-mode.sh`) injects the orchestrator posture each turn.
 
@@ -63,10 +65,10 @@ Implementation goes to workers pinned by frontmatter model ID, so the tiers hold
 
 | Agent | Model | Effort | Role |
 | --- | --- | --- | --- |
-| `fable-router:coder-opus48` | `claude-opus-4-8` | high | complex implementation, cross-file refactors, tricky debugging |
-| `fable-router:coder-sonnet` | `claude-sonnet-5` | medium | standard implementation, test writing, moderate fixes |
-| `fable-router:scout` | Haiku 4.5 | low | mechanical read-only recon (built-in Explore would inherit the expensive session model) |
-| `fable-router:advisor` | `fable` | high | persistent senior advisor, read-only |
+| `opus-5-router:coder-opus48` | `claude-opus-4-8` | high | complex implementation, cross-file refactors, tricky debugging |
+| `opus-5-router:coder-sonnet` | `claude-sonnet-5` | medium | standard implementation, test writing, moderate fixes |
+| `opus-5-router:scout` | Haiku 4.5 | low | mechanical read-only recon (built-in Explore would inherit the expensive session model) |
+| `opus-5-router:advisor` | `fable` | high | persistent senior advisor, read-only |
 
 Fable is consulted only at mandatory triggers (architecture decisions, twice-failed validation after a tier escalation, conflicting evidence, final review of high-consequence changes), as **one persistent advisor agent** continued via SendMessage rather than respawned per question. With `advisor=none` — e.g. once your Fable quota is spent — the triggers resolve via AskUserQuestion instead.
 
@@ -83,4 +85,4 @@ Notes:
 - Requires the plugin install (hooks). Manual installs must wire `orchestrator-guard.sh` (PreToolUse, matcher `Write|Edit|NotebookEdit|Bash`) and `orchestrator-mode.sh` (UserPromptSubmit) in settings themselves.
 - Don't run it together with fable-router auto mode — one assumes a Fable parent, the other an Opus parent. `/opus-orchestrator on` warns if both flags are set.
 - The Bash filter aims to make bypasses hard, not impossible: the enforcement target is model drift, not an adversary.
-- Why the scout stays on Haiku: recon cost is dominated by input tokens, where effort settings don't help and Sonnet 5's new tokenizer (~30% more tokens for the same text) widens the sticker 3x price gap to ~4x in practice (~2.6x under the intro pricing that ends 2026-08-31). Recon that needs interpretation rather than scanning exceeds Haiku's floor — route it to `fable-router:worker-low` with `model: sonnet`.
+- Why the scout stays on Haiku: recon cost is dominated by input tokens, where effort settings don't help and Sonnet 5's new tokenizer (~30% more tokens for the same text) widens the sticker 3x price gap to ~4x in practice (~2.6x under the intro pricing that ends 2026-08-31). Recon that needs interpretation rather than scanning exceeds Haiku's floor — route it to `opus-5-router:worker-low` with `model: sonnet`.

@@ -1,8 +1,10 @@
-# fable-router
+# opus-5-router
 
 [README.md](README.md)
 
-[gpt-5.6-router](https://github.com/volition79/gpt-5.6-router)에서 영감을 받아(inspired by) Claude Code용으로 이식한 스킬. Fable 5(부모)의 토큰을 아끼기 위해 위임 가능한 작업 단계를 Agent 도구의 `model` 오버라이드로 Opus/Sonnet/Haiku에 배정한다.
+토큰 절약 모드 두 가지를 담은 Claude Code 플러그인: **fable-router** 스킬(Fable 5가 부모로서 위임 가능한 단계를 Opus/Sonnet/Haiku에 내려보냄 — 아래에 먼저 설명)과 **opus-orchestrator** 모드(Opus 5가 훅으로 강제되는 순수 오케스트레이터가 되고 Fable은 advisor로만 자문). [gpt-5.6-router](https://github.com/volition79/gpt-5.6-router)에서 영감을 받아(inspired by) Claude Code용으로 이식했다.
+
+fable-router 스킬은 Fable 5(부모)의 토큰을 아끼기 위해 위임 가능한 작업 단계를 Agent 도구의 `model` 오버라이드로 Opus/Sonnet/Haiku에 배정한다.
 
 ## 흐름
 
@@ -24,20 +26,20 @@
 ### Claude Code (플러그인 마켓플레이스)
 
 ```
-/plugin marketplace add KyongSik-Yoon/fable-router
-/plugin install fable-router@fable-router
+/plugin marketplace add KyongSik-Yoon/opus-5-router
+/plugin install opus-5-router@opus-5-router
 ```
 
 ### 수동 설치
 
 ```bash
-git clone https://github.com/KyongSik-Yoon/fable-router
-ln -s "$(pwd)/fable-router/skills/fable-router" ~/.claude/skills/fable-router
+git clone https://github.com/KyongSik-Yoon/opus-5-router
+ln -s "$(pwd)/opus-5-router/skills/fable-router" ~/.claude/skills/fable-router
 # effort 변형 워커 에이전트 (모델 라우팅만 쓸 거면 생략 가능)
-for f in fable-router/agents/*.md; do ln -s "$(pwd)/$f" ~/.claude/agents/; done
+for f in opus-5-router/agents/*.md; do ln -s "$(pwd)/$f" ~/.claude/agents/; done
 ```
 
-참고: 수동 설치 시 워커는 `fable-router:` 접두사 없이 `worker-low` 등으로 등록된다. 플러그인 설치가 문서화된 기본 경로.
+참고: 수동 설치 시 워커는 `opus-5-router:` 접두사 없이 `worker-low` 등으로 등록된다. 플러그인 설치가 문서화된 기본 경로.
 
 ### Claude Desktop / claude.ai
 
@@ -63,10 +65,10 @@ fable-router의 반전: Fable이 아래로 위임하는 대신 **Opus 5 세션�
 
 | 에이전트 | 모델 | Effort | 역할 |
 | --- | --- | --- | --- |
-| `fable-router:coder-opus48` | `claude-opus-4-8` | high | 복잡한 구현, 파일 간 리팩터, 까다로운 디버깅 |
-| `fable-router:coder-sonnet` | `claude-sonnet-5` | medium | 표준 구현, 테스트 작성, 중간 난도 수정 |
-| `fable-router:scout` | Haiku 4.5 | low | 기계적 읽기 전용 정찰 (내장 Explore는 비싼 세션 모델을 상속받는다) |
-| `fable-router:advisor` | `fable` | high | 세션 지속형 시니어 어드바이저, 읽기 전용 |
+| `opus-5-router:coder-opus48` | `claude-opus-4-8` | high | 복잡한 구현, 파일 간 리팩터, 까다로운 디버깅 |
+| `opus-5-router:coder-sonnet` | `claude-sonnet-5` | medium | 표준 구현, 테스트 작성, 중간 난도 수정 |
+| `opus-5-router:scout` | Haiku 4.5 | low | 기계적 읽기 전용 정찰 (내장 Explore는 비싼 세션 모델을 상속받는다) |
+| `opus-5-router:advisor` | `fable` | high | 세션 지속형 시니어 어드바이저, 읽기 전용 |
 
 Fable은 의무 트리거(아키텍처 결정, 티어 상승 후 2회 연속 검증 실패, 증거 충돌, 고위험 변경의 최종 리뷰)에서만 자문하며, 질문마다 새로 띄우지 않고 **하나의 지속 advisor 에이전트**를 SendMessage로 이어 쓴다. `advisor=none`으로 두면 — 예컨대 Fable 쿼터를 다 쓴 뒤 — 트리거는 대신 AskUserQuestion으로 사용자에게 간다.
 
@@ -83,4 +85,4 @@ Fable은 의무 트리거(아키텍처 결정, 티어 상승 후 2회 연속 검
 - 플러그인 설치가 필요하다(훅). 수동 설치는 `orchestrator-guard.sh`(PreToolUse, matcher `Write|Edit|NotebookEdit|Bash`)와 `orchestrator-mode.sh`(UserPromptSubmit)를 settings에 직접 연결해야 한다.
 - fable-router auto 모드와 동시에 켜지 말 것 — 하나는 Fable 부모, 하나는 Opus 부모를 전제한다. `/opus-orchestrator on`은 두 플래그가 겹치면 경고한다.
 - Bash 필터의 목표는 우회를 어렵게 만드는 것이지 불가능하게 만드는 것이 아니다: 강제 대상은 모델 드리프트지 공격자가 아니다.
-- 스카우트가 Haiku를 유지하는 이유: 정찰 비용은 input 토큰이 지배하는데 effort 설정은 input 비용을 줄여주지 못하고, Sonnet 5의 신형 토크나이저(같은 텍스트가 ~30% 더 많은 토큰)까지 겹치면 스티커 3배 가격 차가 실질 ~4배로 벌어진다(2026-08-31 종료되는 인트로 가격 기준으로도 ~2.6배). 스캔이 아니라 해석이 필요한 정찰은 Haiku의 floor를 넘으므로 `fable-router:worker-low` + `model: sonnet`으로 보낼 것.
+- 스카우트가 Haiku를 유지하는 이유: 정찰 비용은 input 토큰이 지배하는데 effort 설정은 input 비용을 줄여주지 못하고, Sonnet 5의 신형 토크나이저(같은 텍스트가 ~30% 더 많은 토큰)까지 겹치면 스티커 3배 가격 차가 실질 ~4배로 벌어진다(2026-08-31 종료되는 인트로 가격 기준으로도 ~2.6배). 스캔이 아니라 해석이 필요한 정찰은 Haiku의 floor를 넘으므로 `opus-5-router:worker-low` + `model: sonnet`으로 보낼 것.

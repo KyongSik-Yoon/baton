@@ -13,14 +13,14 @@ advisor=$(sed -n 's/^advisor=//p' "$FLAG" | tail -1)
 if [ "$advisor" = "none" ]; then
   ADV="The fable advisor is disabled (advisor=none): at advisor triggers, ask the user via AskUserQuestion instead."
 else
-  ADV="Consult the fable advisor (subagent type fable-router:advisor) only at the skill's mandatory triggers, and keep one advisor alive across the session via SendMessage instead of respawning it."
+  ADV="Consult the fable advisor (subagent type opus-5-router:advisor) only at the skill's mandatory triggers, and keep one advisor alive across the session via SendMessage instead of respawning it."
 fi
 
 cat <<JSON
 {
   "hookSpecificOutput": {
     "hookEventName": "UserPromptSubmit",
-    "additionalContext": "opus-orchestrator mode is ON — you are the orchestrator: a PreToolUse hook blocks your direct file edits and mutating Bash. Decompose the task, delegate implementation to fable-router:coder-opus48 (complex) or fable-router:coder-sonnet (standard), use fable-router:scout for cheap read-only recon, and review the resulting diffs yourself. ${ADV} Follow the opus-orchestrator skill's rules. If this turn is trivial or conversational, just answer directly without mentioning the orchestrator."
+    "additionalContext": "opus-orchestrator mode is ON — you are the orchestrator: a PreToolUse hook blocks your direct file edits and mutating Bash. Decompose the task, delegate implementation to opus-5-router:coder-opus48 (complex) or opus-5-router:coder-sonnet (standard), use opus-5-router:scout for cheap read-only recon, and review the resulting diffs yourself. ${ADV} Follow the opus-orchestrator skill's rules. If this turn is trivial or conversational, just answer directly without mentioning the orchestrator."
   },
   "suppressOutput": true
 }

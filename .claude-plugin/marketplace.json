@@ -1,12 +1,12 @@
 {
-  "name": "fable-router",
+  "name": "opus-5-router",
   "owner": {
     "name": "KyongSik Yoon",
     "url": "https://github.com/KyongSik-Yoon"
   },
   "plugins": [
     {
-      "name": "fable-router",
+      "name": "opus-5-router",
       "source": "./",
       "description": "Save Fable 5 usage two ways: route work across Claude models with profile-based, approval-gated delegation (fable-router), or run Opus 5 as a hook-enforced pure orchestrator that delegates edits to pinned workers and consults Fable only as a persistent advisor (opus-orchestrator)."
     }
