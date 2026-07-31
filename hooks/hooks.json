@@ -1,5 +1,5 @@
 {
-  "description": "While auto mode is enabled, nudge every parent turn into the fable-router skill.",
+  "description": "fable-router auto mode: nudge parent turns into the routing skill. opus-orchestrator mode: inject the orchestrator posture each turn and block main-agent mutations at the tool layer.",
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -8,6 +8,23 @@
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/auto-route.sh",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/orchestrator-mode.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/orchestrator-guard.sh",
+            "timeout": 10
           }
         ]
       }

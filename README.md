@@ -52,3 +52,34 @@ Off by default. `/fable-router auto on` creates the flag file `~/.claude/fable-r
 With the plugin install, auto mode also stops needing `/fable-router` on every turn: the bundled `UserPromptSubmit` hook (`hooks/auto-route.sh`) checks the same flag and injects a routing directive into each turn. The directive tells the router to skip trivial and conversational turns — routing overhead would cost more than it saves there — so short follow-ups stay direct. With no flag the hook exits silently and injects nothing.
 
 Manual installs do not pick up the hook (symlinking the skill registers no hooks). To get it without the plugin, point a `UserPromptSubmit` hook in `~/.claude/settings.json` at your checkout's `hooks/auto-route.sh`.
+
+## Opus orchestrator mode
+
+The inverse of fable-router: instead of Fable delegating down, an **Opus 5 session acts as a pure orchestrator** — it thinks, decomposes, delegates, and reviews, but never edits. Useful when Opus 5's direct coding underwhelms but its orchestration holds up, and when you want Fable spent only on judgment.
+
+Enforcement is mechanical, not prompt-based. While the flag file `~/.claude/opus-orchestrator` exists, the plugin's `PreToolUse` hook (`hooks/orchestrator-guard.sh`) denies the **main agent's** `Write`/`Edit`/`NotebookEdit` and any Bash beyond read-only inspection and test/lint commands (`hooks/orchestrator-bash-filter.py`, default-deny). Subagent calls pass untouched — their hook input carries `agent_id`, the main agent's never does. Deny reasons steer the model toward delegation. A `UserPromptSubmit` hook (`hooks/orchestrator-mode.sh`) injects the orchestrator posture each turn.
+
+Implementation goes to workers pinned by frontmatter model ID, so the tiers hold regardless of what the `opus` alias resolves to:
+
+| Agent | Model | Effort | Role |
+| --- | --- | --- | --- |
+| `fable-router:coder-opus48` | `claude-opus-4-8` | high | complex implementation, cross-file refactors, tricky debugging |
+| `fable-router:coder-sonnet` | `claude-sonnet-5` | medium | standard implementation, test writing, moderate fixes |
+| `fable-router:scout` | Haiku 4.5 | low | read-only recon (built-in Explore would inherit the expensive session model) |
+| `fable-router:advisor` | `fable` | high | persistent senior advisor, read-only |
+
+Fable is consulted only at mandatory triggers (architecture decisions, twice-failed validation after a tier escalation, conflicting evidence, final review of high-consequence changes), as **one persistent advisor agent** continued via SendMessage rather than respawned per question. With `advisor=none` — e.g. once your Fable quota is spent — the triggers resolve via AskUserQuestion instead.
+
+```
+/opus-orchestrator on              # advisor=fable (default)
+/opus-orchestrator on advisor=none # pure Opus mode, no Fable at all
+/opus-orchestrator advisor none    # switch advisor while staying on
+/opus-orchestrator status
+/opus-orchestrator off
+```
+
+Notes:
+- The skill cannot switch your session model. Pin it per project with `"model": "claude-opus-5"` in `.claude/settings.json`, or use `/model`.
+- Requires the plugin install (hooks). Manual installs must wire `orchestrator-guard.sh` (PreToolUse, matcher `Write|Edit|NotebookEdit|Bash`) and `orchestrator-mode.sh` (UserPromptSubmit) in settings themselves.
+- Don't run it together with fable-router auto mode — one assumes a Fable parent, the other an Opus parent. `/opus-orchestrator on` warns if both flags are set.
+- The Bash filter aims to make bypasses hard, not impossible: the enforcement target is model drift, not an adversary.
