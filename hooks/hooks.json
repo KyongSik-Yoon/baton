@@ -1,0 +1,16 @@
+{
+  "description": "While auto mode is enabled, nudge every parent turn into the fable-router skill.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/auto-route.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

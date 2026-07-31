@@ -1,0 +1,14 @@
+{
+  "name": "fable-router",
+  "owner": {
+    "name": "KyongSik Yoon",
+    "url": "https://github.com/KyongSik-Yoon"
+  },
+  "plugins": [
+    {
+      "name": "fable-router",
+      "source": "./",
+      "description": "Save Fable 5 usage by routing work across Claude models (Fable 5, Opus, Sonnet, Haiku) with profile-based, approval-gated delegation."
+    }
+  ]
+}

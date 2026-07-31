@@ -1,0 +1,12 @@
+{
+  "name": "fable-router",
+  "description": "Save Fable 5 usage by routing work across Claude models (Fable 5, Opus, Sonnet, Haiku) with profile-based, approval-gated delegation.",
+  "version": "0.4.0",
+  "author": {
+    "name": "KyongSik Yoon"
+  },
+  "homepage": "https://github.com/KyongSik-Yoon/fable-router",
+  "repository": "https://github.com/KyongSik-Yoon/fable-router",
+  "license": "MIT",
+  "keywords": ["claude", "router", "token-saving", "subagents", "skill"]
+}
