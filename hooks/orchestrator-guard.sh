@@ -47,6 +47,10 @@ case "$cmd" in
   git\ status*|git\ diff*|git\ log*|git\ show*|git\ blame*|git\ branch|git\ remote\ -v*) exit 0 ;;
   git*) deny "orchestrator mode: only read-only git is allowed for the main agent. Delegate this to a worker subagent." ;;
 esac
+case "$cmd" in
+  glab\ mr\ list*|glab\ mr\ view*|glab\ mr\ diff*|glab\ mr\ checks*|glab\ issue\ list*|glab\ issue\ view*|glab\ ci\ list*|glab\ ci\ view*|glab\ ci\ status*|glab\ ci\ trace*|glab\ release\ list*|glab\ release\ view*|glab\ repo\ view*|glab\ label\ list*|glab\ auth\ status*|glab\ version*) exit 0 ;;
+  glab*) deny "orchestrator mode: only read-only glab is allowed for the main agent. Delegate this to a worker subagent." ;;
+esac
 first=${cmd%% *}
 case "$first" in
   ls|tree|pwd|wc|du|df|file|stat|head|tail|cat|grep|rg|find|which|date|diff) exit 0 ;;
