@@ -30,6 +30,17 @@ GIT_LIST_SAFE_FLAGS = {
     "-a", "-r", "-v", "-vv", "-l", "--list", "--show-current",
     "--merged", "--no-merged", "--sort=-committerdate",
 }
+GLAB_RO = {
+    "mr": {"list", "view", "diff", "checks", "approvers"},
+    "issue": {"list", "view"},
+    "ci": {"list", "view", "status", "trace", "lint", "get"},
+    "pipe": {"list", "view", "status", "trace", "lint", "get"},
+    "pipeline": {"list", "view", "status", "trace", "lint", "get"},
+    "release": {"list", "view"},
+    "repo": {"view", "search", "contributors"},
+    "label": {"list"},
+    "auth": {"status"},
+}
 RUNNERS = {
     "pytest", "tsc", "eslint", "ruff", "mypy", "flake8", "phpunit", "ctest",
     "jest", "vitest", "playwright", "rspec", "tox", "shellcheck",
@@ -53,6 +64,17 @@ def deny(reason):
         "permissionDecisionReason": reason,
     }}))
     sys.exit(0)
+
+
+def glab_ok(args):
+    if not args:
+        return False
+    if args[0] in ("version", "--version", "--help", "-h"):
+        return True
+    if len(args) < 2:
+        return False
+    allowed = GLAB_RO.get(args[0])
+    return allowed is not None and args[1] in allowed
 
 
 def git_ok(args):
@@ -90,6 +112,8 @@ def segment_ok(seg):
         return "-i" not in args and not any(a.startswith("-i") for a in args)
     if head == "git":
         return git_ok(args)
+    if head == "glab":
+        return glab_ok(args)
     if head in RUNNERS:
         return True
     if head in ("npm", "pnpm", "yarn", "bun"):
