@@ -16,15 +16,28 @@ DELEGATE = " Delegate it to a worker subagent (coder-sonnet / coder-opus48)."
 
 SIMPLE = {
     "ls", "tree", "pwd", "wc", "du", "df", "file", "stat", "head", "tail",
-    "cat", "less", "grep", "rg", "find", "fd", "awk", "sort", "uniq", "cut",
+    "cat", "less", "grep", "rg", "find", "fd", "sort", "uniq", "cut",
     "tr", "echo", "printf", "which", "type", "date", "diff", "cd", "true",
     "test", "[", "column", "jq", "xxd", "strings", "basename", "dirname",
     "realpath", "readlink", "md5sum", "sha256sum", "uname", "whoami", "env",
 }
 GIT_RO = {
-    "status", "diff", "log", "show", "blame", "remote", "rev-parse",
-    "ls-files", "ls-remote", "describe", "shortlog", "reflog", "grep",
+    "status", "diff", "log", "show", "blame", "rev-parse",
+    "ls-files", "ls-remote", "describe", "shortlog", "grep",
     "fetch", "cherry", "merge-base", "count-objects", "var",
+    "rev-list", "for-each-ref", "show-ref", "show-branch", "ls-tree",
+    "cat-file", "check-ignore", "check-attr", "name-rev", "whatchanged",
+    "diff-tree", "diff-files", "diff-index", "verify-commit", "verify-tag",
+    "verify-pack", "annotate", "version", "help",
+}
+# Subcommands read-only only for a whitelisted first positional arg (like stash).
+# submodule foreach / notes add / bisect start etc. run or mutate — excluded.
+GIT_SUB_FIRSTARG = {
+    "stash": {"list", "show"},
+    "worktree": {"list"},
+    "submodule": {"status", "summary"},
+    "bisect": {"log", "view"},
+    "notes": {"list", "show"},
 }
 GIT_LIST_SAFE_FLAGS = {
     "-a", "-r", "-v", "-vv", "-l", "--list", "--show-current",
@@ -85,14 +98,21 @@ def git_ok(args):
     if i >= len(args):
         return False
     sub, rest = args[i], args[i + 1:]
+    positionals = [a for a in rest if not a.startswith("-")]
     if sub in GIT_RO:
         return True
     if sub == "config":
         return any(a in ("--get", "--list", "-l") for a in rest)
     if sub in ("branch", "tag"):
         return all(a in GIT_LIST_SAFE_FLAGS for a in rest)
-    if sub == "stash":
-        return bool(rest) and rest[0] in ("list", "show")
+    if sub in GIT_SUB_FIRSTARG:
+        return bool(positionals) and positionals[0] in GIT_SUB_FIRSTARG[sub]
+    if sub == "symbolic-ref":  # reads with <=1 arg; a second arg (or -d) writes.
+        return "-d" not in rest and "--delete" not in rest and len(positionals) <= 1
+    if sub == "remote":
+        return not positionals or positionals[0] in ("show", "get-url")
+    if sub == "reflog":
+        return not positionals or positionals[0] == "show"
     return False
 
 
@@ -110,6 +130,8 @@ def segment_ok(seg):
         return True
     if head == "sed":
         return "-i" not in args and not any(a.startswith("-i") for a in args)
+    if head == "awk":
+        return not any(">" in a for a in args)
     if head == "git":
         return git_ok(args)
     if head == "glab":
@@ -139,6 +161,54 @@ def segment_ok(seg):
     return False
 
 
+class Dangerous(Exception):
+    """Unquoted redirect / command substitution (or substitution in double
+    quotes) found while scanning — the whole command is refused."""
+
+
+def scan(text):
+    """Single left-to-right pass tracking quote state, so separators and
+    dangerous metacharacters are only acted on where the shell would honour
+    them. Returns the command split into segments on unquoted separators;
+    raises Dangerous for redirects / substitutions the shell would execute."""
+    segments, cur = [], []
+    quote = None  # None, "'" or '"'
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        if quote == "'":  # single quotes: everything literal until the next '
+            cur.append(c)
+            if c == "'":
+                quote = None
+            i += 1
+        elif quote == '"':
+            if c == "\\" and i + 1 < n:  # backslash escapes the next char
+                cur.append(c); cur.append(text[i + 1]); i += 2
+            elif c == "`" or (c == "$" and text[i + 1:i + 2] == "("):
+                raise Dangerous  # still expands inside double quotes
+            else:
+                cur.append(c)
+                if c == '"':
+                    quote = None
+                i += 1
+        else:  # unquoted
+            if c == "\\" and i + 1 < n:
+                cur.append(c); cur.append(text[i + 1]); i += 2
+            elif c in "'\"":
+                quote = c; cur.append(c); i += 1
+            elif c == ">" or (c == "<" and text[i + 1:i + 2] == "(") \
+                    or c == "`" or (c == "$" and text[i + 1:i + 2] == "("):
+                raise Dangerous
+            elif text[i:i + 2] in ("||", "&&"):
+                segments.append("".join(cur)); cur = []; i += 2
+            elif c in ";|\n":  # bare & stays a normal char, matching prior behavior
+                segments.append("".join(cur)); cur = []; i += 1
+            else:
+                cur.append(c); i += 1
+    segments.append("".join(cur))
+    return segments
+
+
 def main():
     try:
         cmd = json.load(sys.stdin).get("tool_input", {}).get("command", "")
@@ -149,11 +219,13 @@ def main():
         return
 
     scrubbed = re.sub(r"2>&1|2>\s*/dev/null|&?>{1,2}\s*/dev/null", "", cmd)
-    if re.search(r">|<\(|\$\(|`", scrubbed):
+    try:
+        segments = scan(scrubbed)
+    except Dangerous:
         deny("orchestrator mode: redirection and command substitution are blocked "
              "for the main agent because they can mutate state." + DELEGATE)
 
-    for seg in re.split(r"\|\||&&|;|\||\n", scrubbed):
+    for seg in segments:
         if seg.strip() and not segment_ok(seg):
             first = (seg.strip().split() or ["?"])[0]
             deny("orchestrator mode: Bash for the main agent is limited to read-only "
