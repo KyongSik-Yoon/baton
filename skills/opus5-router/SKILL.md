@@ -31,7 +31,7 @@ With the mode on, run every non-trivial task through this loop. Trivial or conve
 2. **Recon** — never via built-in Explore, which inherits the expensive session model. Mechanical recon (file discovery, pattern scanning, bulk evidence gathering) goes to `opus-5-router:scout` (pinned Haiku — recon cost is input-token-dominated, where Haiku is ~4x cheaper in practice and effort settings don't help). Recon that needs interpretation or synthesis (ambiguous code, scattered evidence, hypothesis forming) exceeds Haiku's floor: use `opus-5-router:scout-sonnet` (Sonnet 5, effort low) instead. A recon that would exceed the scout's 200K context is a decomposition failure — split it across parallel scouts rather than upgrading the model.
 3. **Design** stays with you, the orchestrator. If the design decision meets an advisor trigger (below), consult before committing to it.
 4. **Delegate implementation**: `opus-5-router:coder-sonnet` (Sonnet 5, effort medium) for standard work with clear acceptance criteria; `opus-5-router:coder-opus48` (Opus 4.8, effort high) for complex implementation, cross-file refactors, tricky debugging. Each worker gets a narrow packet: objective, evidence (paths, not dumps), allowed write surface, non-goals, validation command, output shape. Parallel independent stages go in one message; use `isolation: "worktree"` only when workers mutate files in parallel.
-5. **Review** the diffs yourself — read-only git and test runs are allowed to you. Judge sufficiency; do not rubber-stamp worker self-reports.
+5. **Review** the diffs yourself — read-only git and test runs are allowed to you. Judge sufficiency; do not rubber-stamp worker self-reports. For a high-consequence change you may commission `opus-5-router:reviewer-xhigh` (Opus 4.8, effort xhigh, read-only) as an independent second pass without spending Fable. The verdict is input to your judgment, not a substitute for it — you remain accountable.
 6. **Escalate** on failure, cheapest step first: retry the worker once with the failure evidence; then move the stage up one tier (sonnet → opus48); then consult the advisor. A stage that fails validation twice at the same tier always moves, never retries in place.
 7. **Integrate and report**: actual stages run, models used, validation results, deviations, residual risk.
 
@@ -52,7 +52,7 @@ Outside these triggers, do not consult — decide yourself. This is a floor agai
 
 **Mechanics**: spawn `opus-5-router:advisor` once, on the first trigger; thereafter continue the same agent via SendMessage so it accumulates context — never respawn per question. Each consultation is a briefing packet: goal, constraints, what was tried, conflicting evidence, file paths, and one specific question. The advisor advises; you decide and remain accountable for the decision.
 
-**`advisor=none`** (Fable quota spent or deliberately excluded): triggers still fire, but resolve via AskUserQuestion to the user instead. Never silently substitute another model as advisor.
+**`advisor=none`** (Fable quota spent or deliberately excluded): triggers still fire. Triggers 1–3 (design decision, twice-failed validation, conflicting evidence) resolve via AskUserQuestion to the user — only they can decide on your behalf. Trigger 4 (final review of a high-consequence change) routes to `opus-5-router:reviewer-xhigh` instead, because a subtle correctness review is not something the user can answer for you. This is not a violation of "never silently substitute another model as advisor": the reviewer produces findings, not decisions — you still decide.
 
 ## Safety Invariants
 
@@ -61,7 +61,8 @@ Outside these triggers, do not consult — decide yourself. This is a floor agai
 - The guard is an enforcement layer, not a permission bypass: normal permission prompts still apply to every subagent action.
 - Do not expose secrets in packets or advisor briefings.
 - Guard denials are steering, not obstacles: a denied mutation means delegate it, not find a shell trick around it.
+- The reviewer never implements; its output is findings, and any resulting fix goes to a coder worker as a normal stage.
 
 ## Completion
 
-You integrate all results and report: stages run with their models and effort, validation results, advisor consultations (triggers hit, one-line outcomes), deviations from the plan, and residual risk. Worker completion alone is not task completion.
+You integrate all results and report: stages run with their models and effort, validation results, advisor consultations (triggers hit, one-line outcomes) and independent reviews commissioned (agent, verdict, one-line outcome), deviations from the plan, and residual risk. Worker completion alone is not task completion.

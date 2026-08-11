@@ -18,9 +18,10 @@ Implementation goes to workers pinned by frontmatter model ID, so the tiers hold
 | `opus-5-router:coder-sonnet` | `claude-sonnet-5` | medium | standard implementation, test writing, moderate fixes |
 | `opus-5-router:scout` | Haiku 4.5 | low | mechanical read-only recon (built-in Explore would inherit the expensive session model) |
 | `opus-5-router:scout-sonnet` | `claude-sonnet-5` | low | interpretive read-only recon — ambiguous code, scattered evidence, hypothesis forming |
+| `opus-5-router:reviewer-xhigh` | `claude-opus-4-8` | xhigh | adversarial read-only review of high-consequence diffs; handles the final-review trigger when advisor=none |
 | `opus-5-router:advisor` | `fable` | high | persistent senior advisor, read-only |
 
-Fable is consulted only at mandatory triggers (architecture decisions, twice-failed validation after a tier escalation, conflicting evidence, final review of high-consequence changes), as **one persistent advisor agent** continued via SendMessage rather than respawned per question. With `advisor=none` — e.g. once your Fable quota is spent — the triggers resolve via AskUserQuestion instead.
+Fable is consulted only at mandatory triggers (architecture decisions, twice-failed validation after a tier escalation, conflicting evidence, final review of high-consequence changes), as **one persistent advisor agent** continued via SendMessage rather than respawned per question. With `advisor=none` — e.g. once your Fable quota is spent — the design/ambiguity triggers resolve via AskUserQuestion instead, while the final-review trigger routes to `opus-5-router:reviewer-xhigh`.
 
 ## Usage
 

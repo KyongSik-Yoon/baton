@@ -18,9 +18,10 @@
 | `opus-5-router:coder-sonnet` | `claude-sonnet-5` | medium | 표준 구현, 테스트 작성, 중간 난도 수정 |
 | `opus-5-router:scout` | Haiku 4.5 | low | 기계적 읽기 전용 정찰 (내장 Explore는 비싼 세션 모델을 상속받는다) |
 | `opus-5-router:scout-sonnet` | `claude-sonnet-5` | low | 해석형 읽기 전용 정찰 — 모호한 코드, 흩어진 증거, 가설 수립 |
+| `opus-5-router:reviewer-xhigh` | `claude-opus-4-8` | xhigh | 고위험 변경에 대한 적대적 읽기 전용 리뷰; advisor=none일 때 최종 리뷰 트리거를 처리 |
 | `opus-5-router:advisor` | `fable` | high | 세션 지속형 시니어 어드바이저, 읽기 전용 |
 
-Fable은 의무 트리거(아키텍처 결정, 티어 상승 후 2회 연속 검증 실패, 증거 충돌, 고위험 변경의 최종 리뷰)에서만 자문하며, 질문마다 새로 띄우지 않고 **하나의 지속 advisor 에이전트**를 SendMessage로 이어 쓴다. `advisor=none`으로 두면 — 예컨대 Fable 쿼터를 다 쓴 뒤 — 트리거는 대신 AskUserQuestion으로 사용자에게 간다.
+Fable은 의무 트리거(아키텍처 결정, 티어 상승 후 2회 연속 검증 실패, 증거 충돌, 고위험 변경의 최종 리뷰)에서만 자문하며, 질문마다 새로 띄우지 않고 **하나의 지속 advisor 에이전트**를 SendMessage로 이어 쓴다. `advisor=none`으로 두면 — 예컨대 Fable 쿼터를 다 쓴 뒤 — 설계·모호성 트리거는 AskUserQuestion으로 사용자에게 가고, 최종 리뷰 트리거는 `opus-5-router:reviewer-xhigh`로 간다.
 
 ## 사용법
 
