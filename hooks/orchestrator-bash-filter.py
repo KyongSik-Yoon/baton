@@ -265,10 +265,11 @@ def _is_gh_graphql_endpoint(arg):
     if not segments or segments[-1].lower() != "graphql":
         return False
     # The final segment is `graphql`; it is the endpoint iff nothing precedes it
-    # or exactly one host-like segment (containing a dot) does. A multi-segment
-    # non-host prefix (repos/o/r/contents/graphql) is an ordinary REST path.
-    prefix = segments[:-1]
-    return not prefix or (len(prefix) == 1 and "." in prefix[0])
+    # or exactly one segment does, host-like or not (a dotless host such as
+    # `localhost` or an intranet short name is still a host). No real GitHub
+    # REST path has the shape `<one-segment>/graphql`, so a multi-segment
+    # prefix (repos/o/r/contents/graphql) is still an ordinary REST path.
+    return len(segments) <= 2
 
 
 def _gh_api_ok(args):

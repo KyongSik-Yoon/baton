@@ -236,6 +236,12 @@ CASES = [
     (False, "gh api http://api.github.com/graphql"),
     (False, "gh api https://api.github.com/graphql?foo=bar"),
     (False, "gh api https://ghe.example.com/graphql"),
+    # --- graphql structural deny: dotless host prefixes (no dot required) ---
+    (False, "gh api localhost/graphql"),
+    (False, "gh api http://localhost/graphql"),
+    (False, "gh api https://localhost/graphql"),
+    (False, "gh api intranet/graphql"),
+    (False, "gh api v4.example.org/graphql"),
     (False, "gh gist create f.txt"),
     (False, "gh cache delete 1"),
     (False, "gh browse"),
