@@ -16,11 +16,13 @@ DELEGATE = " Delegate it to a worker subagent (coder-sonnet / coder-opus48)."
 
 SIMPLE = {
     "ls", "tree", "pwd", "wc", "du", "df", "file", "stat", "head", "tail",
-    "cat", "less", "grep", "rg", "find", "fd", "sort", "uniq", "cut",
+    "cat", "grep", "rg", "fd", "sort", "uniq", "cut",
     "tr", "echo", "printf", "which", "type", "date", "diff", "cd", "true",
     "test", "[", "column", "jq", "xxd", "strings", "basename", "dirname",
-    "realpath", "readlink", "md5sum", "sha256sum", "uname", "whoami", "env",
-    # read-only inspection additions (tee excluded: it writes files)
+    "realpath", "readlink", "md5sum", "sha256sum", "uname", "whoami",
+    # read-only inspection additions (tee excluded: it writes files; less
+    # excluded: its interactive `!cmd` spawns a shell and cat/head cover the
+    # need; env/find/awk/sed moved to dedicated handlers that inspect args)
     "ps", "pgrep", "nproc", "uptime", "free", "id", "hostname", "groups",
     "seq", "nl", "tac", "rev", "comm", "paste", "join", "expr", "base64",
     "sha1sum", "cksum", "getent", "ss", "lsof",
@@ -87,6 +89,34 @@ NPM_RUN_OK = re.compile(r"^(test|lint|typecheck|check|coverage)([:.].*)?$")
 NPM_RO_SUB = {"ls", "list", "view", "root", "prefix", "outdated", "why", "explain"}
 # xargs flags that consume a value (glued like -n1 or as the next word like -n 1).
 XARGS_VALUE_FLAGS = {"-n", "-P", "-I", "-L", "-s", "-a", "-d", "-E", "-i"}
+# Command wrappers: skip the wrapper's own flags (and, for some, a fixed number
+# of leading positionals), then re-check the wrapped command with words_ok — the
+# same idea as xargs_ok. `env` is special-cased (VAR=value args) in env_ok.
+# Each entry: (value-taking flags, number of positionals to skip). `time`/`nohup`
+# etc. have no value flags; timeout/chrt eat one positional (duration/priority).
+WRAPPERS = {
+    "nice":    ({"-n", "--adjustment"}, 0),
+    "nohup":   (set(), 0),
+    "timeout": ({"-k", "--kill-after", "-s", "--signal"}, 1),
+    "stdbuf":  ({"-i", "-o", "-e", "--input", "--output", "--error"}, 0),
+    "ionice":  ({"-c", "-n", "-p", "--class", "--classdata", "--pid"}, 0),
+    "setsid":  (set(), 0),
+    "chrt":    (set(), 1),
+    "command": (set(), 0),
+    "time":    (set(), 0),
+}
+# Shells, privilege-escalators and eval-likes: never re-check, always deny. These
+# are default-denied already, but naming them makes the intent explicit and keeps
+# a wrapper (`nice sudo …`) from ever reaching them via re-check.
+HARD_DENY = {
+    "sudo", "doas", "su", "exec", "eval",
+    "sh", "bash", "zsh", "ksh", "source", ".",
+}
+# find predicates that run a command or write to disk (pure traversal stays ok).
+FIND_DENY = {
+    "-exec", "-execdir", "-ok", "-okdir",
+    "-delete", "-fprint", "-fprintf", "-fls",
+}
 # Shell keywords: strip and re-check the remainder as a command. `for` heads a
 # loop header whose trailing words are a list, not a command; `case` is waved
 # through only as a bare header, since a one-line case body shares its segment.
@@ -251,6 +281,163 @@ def herdr_ok(args):
     return allowed is not None and args[1] in allowed
 
 
+def wrapper_ok(value_flags, skip_positionals, args):
+    # Skip the wrapper's own flags (value may be glued `--out=L` or a separate
+    # word `-o L`), then skip a fixed number of positionals (e.g. timeout's
+    # duration), then re-check whatever command is left.
+    i = 0
+    while i < len(args) and args[i].startswith("-"):
+        flag = args[i]
+        if flag == "--":
+            i += 1
+            break
+        base = flag.split("=", 1)[0]
+        if base in value_flags:
+            i += 2 if flag == base else 1  # separate word vs glued `--flag=val`
+        else:
+            i += 1
+    for _ in range(skip_positionals):
+        if i < len(args) and not args[i].startswith("-"):
+            i += 1
+    if i >= len(args):
+        return True  # nothing wrapped: a degenerate no-op, harmless
+    return words_ok(args[i:])
+
+
+def env_ok(args):
+    # `env`/`env -i`/`env -0` (no command) prints the environment — allow.
+    # Skip VAR=value assignments and env's own flags, then re-check the command.
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", a):
+            i += 1  # NAME=value passed into the child's environment
+        elif a.startswith("-"):
+            base = a.split("=", 1)[0]
+            if a.startswith("-S") or base == "--split-string":
+                # env -S/--split-string re-splits its argument into a new argv
+                # and execs it, so the "value" we'd skip over IS the command.
+                # Don't try to split and re-check it here; just deny.
+                return False
+            if base in ("-u", "--unset", "-C", "--chdir"):
+                i += 2 if a == base else 1
+            else:
+                i += 1  # -i / -0 and friends take no value
+        else:
+            break
+    if i >= len(args):
+        return True
+    return words_ok(args[i:])
+
+
+def find_ok(args):
+    # Pure traversal is fine; -exec/-delete/-fprint* run commands or write files.
+    return not any(a in FIND_DENY for a in args)
+
+
+def _awk_dangerous(prog):
+    # Code-execution / file-write constructs in the awk program text.
+    return bool(
+        re.search(r"system\s*\(", prog)
+        or re.search(r"close\s*\(", prog)
+        or re.search(r"\|\s*getline", prog)
+        or re.search(r'\|\s*"', prog)                       # pipe into a command
+        or re.search(r"\b(?:print|printf)\b[^;{}\n]*>", prog)  # redirect to file
+    )
+
+
+def awk_ok(args):
+    # Deny -f/--file (external, uninspectable script), then inspect the program
+    # text: the first non-flag argument, after skipping -F/-v (glued or separate).
+    i = 0
+    while i < len(args) and args[i].startswith("-"):
+        a = args[i]
+        base = a.split("=", 1)[0] if a.startswith("--") else a[:2]
+        if base in ("-f", "--file"):
+            return False
+        if a == "--":
+            i += 1
+            break
+        if a in ("-F", "-v"):
+            i += 2  # value in the next word
+        else:
+            i += 1  # glued -F: / -vx=1, or any other single flag word
+    if i >= len(args):
+        return True  # only assignments/flags, no program to run
+    return not _awk_dangerous(args[i])
+
+
+def _sed_dangerous(script):
+    # Walk the sed script, skipping addresses, and refuse the e (execute) and
+    # w/W/r/R (file I/O) commands plus any s/// whose flags contain e or w.
+    i, n = 0, len(script)
+    while i < n:
+        c = script[i]
+        if c in " \t\n;{}" or c.isdigit() or c in "$+~,!":
+            i += 1
+            continue
+        if c == "/" or c == "\\":  # /regex/ or \cregexc address
+            delim = "/" if c == "/" else script[i + 1] if i + 1 < n else "/"
+            i += 1 if c == "/" else 2
+            while i < n and script[i] != delim:
+                i += 2 if script[i] == "\\" else 1
+            i += 1
+            continue
+        if c in "ewWrR":
+            return True  # execute, or read/write a file
+        if c in "sy":  # s/pat/rep/flags or y/set/set/
+            if i + 1 >= n:
+                return True  # malformed — refuse rather than guess
+            delim, j, seen = script[i + 1], i + 2, 1
+            while j < n and seen < 3:
+                if script[j] == "\\":
+                    j += 2
+                    continue
+                if script[j] == delim:
+                    seen += 1
+                j += 1
+            if c == "s":
+                flags = ""
+                while j < n and script[j] not in " \t\n;}":
+                    flags += script[j]
+                    j += 1
+                if "e" in flags or "w" in flags:
+                    return True
+            i = j
+            continue
+        i += 1  # some other command letter (p, d, n, ...)
+    return False
+
+
+def sed_ok(args):
+    # Deny -i (in-place) and -f/--file (external script); collect the script from
+    # -e expressions or the first positional, and inspect it for e/w constructs.
+    scripts, have_e, i = [], False, 0
+    while i < len(args):
+        a = args[i]
+        if a.startswith("-") and a != "-":
+            if a == "-i" or a.startswith("-i") or a.startswith("--in-place"):
+                return False
+            if a in ("-f", "--file") or a.startswith("-f") or a.startswith("--file="):
+                return False
+            if a in ("-e", "--expression"):
+                if i + 1 < len(args):
+                    scripts.append(args[i + 1])
+                have_e = True
+                i += 2
+                continue
+            if a.startswith("-e"):
+                scripts.append(a[2:]); have_e = True; i += 1; continue
+            if a.startswith("--expression="):
+                scripts.append(a.split("=", 1)[1]); have_e = True; i += 1; continue
+            i += 1
+            continue
+        if not have_e and not scripts:
+            scripts.append(a)  # first positional is the script
+        i += 1
+    return not any(_sed_dangerous(s) for s in scripts)
+
+
 def xargs_ok(args):
     # Skip xargs' own flags (value-taking ones may be glued or a separate word),
     # then validate the command it would run. No command means implicit echo.
@@ -280,12 +467,21 @@ def words_ok(words):
     if not words:
         return True  # keyword-only segment (done, fi, esac, })
     head, args = words[0].rsplit("/", 1)[-1], words[1:]
+    if head in HARD_DENY:
+        return False  # shells / privilege-escalators / eval: never re-check
     if head in SIMPLE:
         return True
+    if head == "env":
+        return env_ok(args)
+    if head in WRAPPERS:
+        value_flags, skip_positionals = WRAPPERS[head]
+        return wrapper_ok(value_flags, skip_positionals, args)
+    if head == "find":
+        return find_ok(args)
     if head == "sed":
-        return "-i" not in args and not any(a.startswith("-i") for a in args)
-    if head == "awk":
-        return not any(">" in a for a in args)
+        return sed_ok(args)
+    if head in ("awk", "gawk", "mawk"):
+        return awk_ok(args)
     if head == "git":
         return git_ok(args)
     if head == "glab":

@@ -105,6 +105,62 @@ CASES = [
     (True, "ps aux | grep python"),
     (True, "id -u"),
     (False, "wget http://example.com/x"),
+
+    # --- follow-up: command wrappers re-check the wrapped command (deny) ---
+    (False, "env rm -rf /tmp/x"),
+    (False, "env git push"),
+    (False, "env python3 -c 'print(1)'"),
+    (False, "env FOO=1 rm x"),
+    (False, 'env -S "rm -rf /tmp/x"'),
+    (False, 'env --split-string="rm -rf /tmp/x"'),
+    (False, "env -S ls"),
+    (False, "nice rm -rf /tmp/x"),
+    (False, "nohup rm x"),
+    (False, "timeout 5 rm x"),
+    (False, "command rm -rf /tmp/x"),
+    (False, "exec rm x"),
+    (False, "sudo ls"),
+    (False, "setsid rm x"),
+    (False, "eval ls"),
+    (False, "bash -c ls"),
+
+    # --- follow-up: wrappers pass a read-only wrapped command through (allow) ---
+    (True, "env"),
+    (True, "env | grep HERDR"),
+    (True, "timeout 5 ls -la"),
+    (True, "nice -n 10 grep -rn foo ."),
+    (True, "time ls"),
+    (True, "command ls"),
+    (True, "stdbuf -oL grep foo x"),
+
+    # --- follow-up: find execution/write predicates (deny) ---
+    (False, "find . -name '*.py' -delete"),
+    (False, "find . -name '*.py' -exec rm {} ;"),
+    (False, "find . -execdir rm {} +"),
+    (False, "find . -name x -fls out"),
+
+    # --- follow-up: find pure traversal (allow) ---
+    (True, "find . -name '*.py'"),
+    (True, "find . -type f -newer x"),
+
+    # --- follow-up: awk code-execution / write constructs (deny) ---
+    (False, "awk 'BEGIN{system(\"touch /tmp/x\")}'"),
+    (False, "awk '{print > \"/tmp/x\"}'"),
+    (False, "awk -f evil.awk file.txt"),
+
+    # --- follow-up: awk pure output (allow) ---
+    (True, "awk '{print $1}' file.txt"),
+    (True, "awk -F: '{print $1}' /etc/passwd"),
+    (True, "awk '/x/{print}' f"),
+
+    # --- follow-up: sed execution / write constructs (deny) ---
+    (False, "sed 's/a/b/e' file.txt"),
+    (False, "sed 's/a/b/w /tmp/x' file.txt"),
+    (False, "sed -f script.sed file.txt"),
+
+    # --- follow-up: sed benign scripts (allow) ---
+    (True, "sed 's/a/b/' file.txt"),
+    (True, "sed -n '1,5p' file.txt"),
 ]
 
 
