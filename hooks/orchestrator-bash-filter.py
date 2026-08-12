@@ -247,9 +247,21 @@ def gh_ok(args):
 def _gh_api_ok(args):
     # `gh api graphql` defaults to POST even with no -X flag, so the GET-only
     # method check in _glab_api_ok would wave GraphQL mutations through. Deny
-    # the graphql endpoint outright before delegating the flag analysis.
-    if "graphql" in args:
-        return False
+    # the graphql endpoint outright before delegating the flag analysis. The
+    # check is spelling-insensitive: strip leading/trailing slashes and case
+    # so `/graphql`, `graphql/`, and `GRAPHQL` all match, and also catch the
+    # host-qualified form (e.g. `api.github.com/graphql`). It does not match
+    # paths that merely contain the word, e.g. `repos/o/repo/contents/graphql`
+    # — only a bare `graphql` segment or a `host/graphql` pair (host has a
+    # dot) counts as the endpoint.
+    for a in args:
+        if a.startswith("-"):
+            continue
+        segments = [s for s in a.strip("/").split("/") if s]
+        if len(segments) == 1 and segments[0].lower() == "graphql":
+            return False
+        if len(segments) == 2 and segments[1].lower() == "graphql" and "." in segments[0]:
+            return False
     return _glab_api_ok(args)
 
 
