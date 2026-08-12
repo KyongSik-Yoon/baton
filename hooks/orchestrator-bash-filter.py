@@ -43,17 +43,36 @@ GIT_LIST_SAFE_FLAGS = {
     "-a", "-r", "-v", "-vv", "-l", "--list", "--show-current",
     "--merged", "--no-merged", "--sort=-committerdate",
 }
+_CI_RO = {"list", "view", "status", "trace", "lint", "get", "config"}
+# token/variable excluded: they print secrets. artifact/download/clone excluded:
+# they write files to disk (not read-only from the sandbox's point of view).
 GLAB_RO = {
     "mr": {"list", "view", "diff", "checks", "approvers"},
     "issue": {"list", "view"},
-    "ci": {"list", "view", "status", "trace", "lint", "get"},
-    "pipe": {"list", "view", "status", "trace", "lint", "get"},
-    "pipeline": {"list", "view", "status", "trace", "lint", "get"},
+    "incident": {"list", "view"},
+    "ci": _CI_RO,
+    "pipe": _CI_RO,
+    "pipeline": _CI_RO,
+    "job": {"list", "view", "get", "trace"},
     "release": {"list", "view"},
-    "repo": {"view", "search", "contributors"},
+    "repo": {"view", "search", "contributors", "list"},
     "label": {"list"},
+    "milestone": {"list"},
+    "iteration": {"list"},
+    "schedule": {"list"},
+    "snippet": {"list", "view"},
+    "deploy-key": {"list", "get"},
+    "ssh-key": {"list", "get"},
+    "gpg-key": {"list", "get"},
+    "user": {"events"},
     "auth": {"status"},
+    "config": {"get", "list"},
+    "changelog": {"generate"},
+    "alias": {"list"},
 }
+# Top-level commands that are read-only for every subcommand/arg combination.
+GLAB_RO_TOP = {"search", "check-update", "whatsnew"}
+GLAB_API_LONG_MUTATE = ("--field", "--raw-field", "--input")
 RUNNERS = {
     "pytest", "tsc", "eslint", "ruff", "mypy", "flake8", "phpunit", "ctest",
     "jest", "vitest", "playwright", "rspec", "tox", "shellcheck",
@@ -82,12 +101,36 @@ def deny(reason):
 def glab_ok(args):
     if not args:
         return False
-    if args[0] in ("version", "--version", "--help", "-h"):
+    if any(a in ("-h", "--help") for a in args):
+        return True  # help is read-only regardless of where it appears
+    if args[0] in ("version", "--version", "-v", "help"):
         return True
+    if args[0] in GLAB_RO_TOP:
+        return True
+    if args[0] == "api":
+        return _glab_api_ok(args[1:])
     if len(args) < 2:
         return False
     allowed = GLAB_RO.get(args[0])
     return allowed is not None and args[1] in allowed
+
+
+def _glab_api_ok(args):
+    for i, a in enumerate(args):
+        # long flags: bare or --flag=value; -f/-F: bare or glued -fvalue/-Fvalue
+        if a in GLAB_API_LONG_MUTATE or a.split("=", 1)[0] in GLAB_API_LONG_MUTATE:
+            return False
+        if a in ("-f", "-F") or (len(a) > 2 and a[:2] in ("-f", "-F")):
+            return False
+        if a == "--method" or a.startswith("--method="):
+            value = a.split("=", 1)[1] if "=" in a else args[i + 1] if i + 1 < len(args) else ""
+            if value.upper() != "GET":
+                return False
+        elif a == "-X" or (len(a) > 2 and a[:2] == "-X"):
+            value = a[2:] if len(a) > 2 else args[i + 1] if i + 1 < len(args) else ""
+            if value.upper() != "GET":
+                return False
+    return True
 
 
 def git_ok(args):
