@@ -79,6 +79,26 @@ GLAB_RO = {
 # Top-level commands that are read-only for every subcommand/arg combination.
 GLAB_RO_TOP = {"search", "check-update", "whatsnew"}
 GLAB_API_LONG_MUTATE = ("--field", "--raw-field", "--input")
+# gh (GitHub CLI) mirrors the glab surface. Excluded for the same reasons the
+# glab block excludes their equivalents: secret/variable print or set
+# credentials; repo clone / release download / run download write files to disk
+# (not read-only from the sandbox's point of view); browse opens external state;
+# auth login / config set mutate. pr checkout is deliberately kept off pr's
+# allowlist — it switches branches, mutating the working tree, so it is not a
+# query despite reading like one.
+GH_RO = {
+    "pr": {"view", "list", "diff", "checks", "status"},
+    "issue": {"view", "list", "status"},
+    "repo": {"view", "list"},
+    "run": {"view", "list"},
+    "release": {"view", "list"},
+    "workflow": {"view", "list"},
+    "label": {"list"},
+    "gist": {"view", "list"},
+    "auth": {"status"},
+    "config": {"get", "list"},
+}
+GH_RO_TOP = {"search"}
 RUNNERS = {
     "pytest", "tsc", "eslint", "ruff", "mypy", "flake8", "phpunit", "ctest",
     "jest", "vitest", "playwright", "rspec", "tox", "shellcheck",
@@ -205,6 +225,32 @@ def _glab_api_ok(args):
             if value.upper() != "GET":
                 return False
     return True
+
+
+def gh_ok(args):
+    if not args:
+        return False
+    if any(a in ("-h", "--help") for a in args):
+        return True  # help is read-only regardless of where it appears
+    if args[0] in ("version", "--version", "-v", "help"):
+        return True
+    if args[0] in GH_RO_TOP:
+        return True
+    if args[0] == "api":
+        return _gh_api_ok(args[1:])
+    if len(args) < 2:
+        return False
+    allowed = GH_RO.get(args[0])
+    return allowed is not None and args[1] in allowed
+
+
+def _gh_api_ok(args):
+    # `gh api graphql` defaults to POST even with no -X flag, so the GET-only
+    # method check in _glab_api_ok would wave GraphQL mutations through. Deny
+    # the graphql endpoint outright before delegating the flag analysis.
+    if "graphql" in args:
+        return False
+    return _glab_api_ok(args)
 
 
 def git_ok(args):
@@ -486,6 +532,8 @@ def words_ok(words):
         return git_ok(args)
     if head == "glab":
         return glab_ok(args)
+    if head == "gh":
+        return gh_ok(args)
     if head == "claude":
         return claude_ok(args)
     if head == "herdr":
