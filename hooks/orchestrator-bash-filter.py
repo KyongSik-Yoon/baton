@@ -244,23 +244,38 @@ def gh_ok(args):
     return allowed is not None and args[1] in allowed
 
 
-def _gh_api_ok(args):
+def _is_gh_graphql_endpoint(arg):
     # `gh api graphql` defaults to POST even with no -X flag, so the GET-only
-    # method check in _glab_api_ok would wave GraphQL mutations through. Deny
-    # the graphql endpoint outright before delegating the flag analysis. The
-    # check is spelling-insensitive: strip leading/trailing slashes and case
-    # so `/graphql`, `graphql/`, and `GRAPHQL` all match, and also catch the
-    # host-qualified form (e.g. `api.github.com/graphql`). It does not match
-    # paths that merely contain the word, e.g. `repos/o/repo/contents/graphql`
-    # — only a bare `graphql` segment or a `host/graphql` pair (host has a
-    # dot) counts as the endpoint.
+    # method check in _glab_api_ok would wave GraphQL mutations through, and the
+    # endpoint must be denied outright. This predicate missed twice when written
+    # as a list of accepted shapes — first an exact literal (so `/graphql -X GET`
+    # slipped), then a two-shape enumeration (so `https://api.github.com/graphql`
+    # slipped once the scheme added a third segment). Rather than add a third
+    # special case, normalize the argument and decide from its structure.
+    s = arg
+    low = s.lower()
+    for scheme in ("https://", "http://"):
+        if low.startswith(scheme):
+            s = s[len(scheme):]
+            break
+    # drop any query string or fragment
+    for sep in ("?", "#"):
+        s = s.split(sep, 1)[0]
+    segments = [seg for seg in s.strip("/").split("/") if seg]
+    if not segments or segments[-1].lower() != "graphql":
+        return False
+    # The final segment is `graphql`; it is the endpoint iff nothing precedes it
+    # or exactly one host-like segment (containing a dot) does. A multi-segment
+    # non-host prefix (repos/o/r/contents/graphql) is an ordinary REST path.
+    prefix = segments[:-1]
+    return not prefix or (len(prefix) == 1 and "." in prefix[0])
+
+
+def _gh_api_ok(args):
     for a in args:
         if a.startswith("-"):
             continue
-        segments = [s for s in a.strip("/").split("/") if s]
-        if len(segments) == 1 and segments[0].lower() == "graphql":
-            return False
-        if len(segments) == 2 and segments[1].lower() == "graphql" and "." in segments[0]:
+        if _is_gh_graphql_endpoint(a):
             return False
     return _glab_api_ok(args)
 
