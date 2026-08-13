@@ -1,7 +1,7 @@
 {
   "name": "opus-5-router",
   "description": "Run Opus 5 as a hook-enforced pure orchestrator: a PreToolUse hook blocks the main agent's edits and mutating Bash, implementation goes to workers pinned to Opus 4.8 / Sonnet 5 / Haiku, and Fable 5 is consulted only as a persistent advisor at mandatory escalation triggers.",
-  "version": "0.4.8",
+  "version": "0.4.9",
   "author": {
     "name": "KyongSik Yoon"
   },

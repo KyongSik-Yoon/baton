@@ -99,6 +99,27 @@ GH_RO = {
     "config": {"get", "list"},
 }
 GH_RO_TOP = {"search"}
+# curl is allowed only as a read-only GET/HEAD fetch. This is a strict
+# whitelist: any flag not named here refuses the whole command, which is what
+# keeps file-writing / upload flags (-o -O --output --output-dir --create-dirs
+# -D --dump-header -T --upload-file -d --data* -F --form* -K --config -c
+# --cookie-jar --trace*) out without having to enumerate them. -X/--request is
+# further constrained to GET/HEAD.
+CURL_BOOL_SHORT = set("sSfLiIkvgqN46hV")
+CURL_VAL_SHORT = set("mHAebuxwrX")
+CURL_BOOL_LONG = {
+    "--silent", "--show-error", "--fail", "--fail-with-body", "--location",
+    "--location-trusted", "--include", "--head", "--insecure", "--compressed",
+    "--verbose", "--globoff", "--disable", "--no-buffer", "--no-progress-meter",
+    "--path-as-is", "--get", "--ipv4", "--ipv6", "--http1.1", "--http2",
+    "--http3", "--tlsv1.2", "--tlsv1.3", "--help", "--version",
+}
+CURL_VAL_LONG = {
+    "--max-time", "--connect-timeout", "--header", "--user-agent", "--referer",
+    "--cookie", "--user", "--proxy", "--write-out", "--range", "--url",
+    "--retry", "--retry-delay", "--retry-max-time", "--max-redirs", "--resolve",
+    "--connect-to", "--interface", "--oauth2-bearer", "--request",
+}
 RUNNERS = {
     "pytest", "tsc", "eslint", "ruff", "mypy", "flake8", "phpunit", "ctest",
     "jest", "vitest", "playwright", "rspec", "tox", "shellcheck",
@@ -173,8 +194,10 @@ REDIRECT_MSG = (
     "main agent because they can mutate state." + DELEGATE
 )
 CURL_MSG = (
-    "orchestrator mode: curl/wget are blocked for the main agent because they "
-    "can POST and exfiltrate data; use the WebFetch tool for network reads."
+    "orchestrator mode: only a read-only GET/HEAD curl with safe flags is "
+    "accepted for the main agent; this command was refused because it writes a "
+    "file, uploads, uses a non-GET/HEAD method, or used an unrecognized flag "
+    "(wget is refused entirely). Use the WebFetch tool for network reads."
     + DELEGATE
 )
 GENERIC_MSG = (
@@ -279,6 +302,66 @@ def _gh_api_ok(args):
         if _is_gh_graphql_endpoint(a):
             return False
     return _glab_api_ok(args)
+
+
+def curl_ok(args):
+    # Strict whitelist parser: a read-only GET/HEAD fetch with safe flags passes;
+    # anything else (a file-writing/upload flag, a non-GET/HEAD method, or any
+    # unrecognized flag) refuses the whole command. A consumed flag value is
+    # never re-parsed as a flag, so `curl -H -o https://x` reads -o as a header.
+    if not args:
+        return False
+    i, n = 0, len(args)
+    while i < n:
+        a = args[i]
+        if a == "--" or not a.startswith("-"):
+            i += 1  # bare -- or a positional (URL / lone -)
+            continue
+        if a.startswith("--"):
+            base = a.split("=", 1)[0]
+            has_eq = "=" in a
+            if base in CURL_BOOL_LONG:
+                i += 1
+                continue
+            if base in CURL_VAL_LONG:
+                if has_eq:
+                    value = a.split("=", 1)[1]
+                    i += 1
+                else:
+                    if i + 1 >= n:
+                        return False  # flag with no value
+                    value = args[i + 1]
+                    i += 2  # consume the value word; never re-parse it
+                if base == "--request" and value.upper() not in ("GET", "HEAD"):
+                    return False
+                if base == "--write-out" and "%output{" in value.lower():
+                    return False  # %output{file} writes to disk (curl >= 7.87)
+                continue
+            return False  # unrecognized long flag
+        cluster = a[1:]  # short cluster like -sSf or -m5
+        j = 0
+        while j < len(cluster):
+            c = cluster[j]
+            if c in CURL_BOOL_SHORT:
+                j += 1
+                continue
+            if c in CURL_VAL_SHORT:
+                rest = cluster[j + 1:]
+                if rest:
+                    value = rest  # glued value, e.g. -m5 or -XGET
+                else:
+                    if i + 1 >= n:
+                        return False  # value-taking short with no value
+                    value = args[i + 1]
+                    i += 1  # consume the next word as the value
+                if c == "X" and value.upper() not in ("GET", "HEAD"):
+                    return False
+                if c == "w" and "%output{" in value.lower():
+                    return False  # %output{file} writes to disk (curl >= 7.87)
+                break  # a value-taking short ends the cluster
+            return False  # unknown char anywhere in the cluster refuses
+        i += 1
+    return True
 
 
 def git_ok(args):
@@ -562,6 +645,8 @@ def words_ok(words):
         return glab_ok(args)
     if head == "gh":
         return gh_ok(args)
+    if head == "curl":
+        return curl_ok(args)
     if head == "claude":
         return claude_ok(args)
     if head == "herdr":
