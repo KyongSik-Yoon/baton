@@ -1,12 +1,12 @@
 {
-  "name": "opus-5-router",
+  "name": "baton",
   "description": "Run the session (Opus 5 or Fable 5 parent) as a hook-enforced pure orchestrator: a PreToolUse hook blocks the main agent's edits and mutating Bash, implementation goes to workers pinned to Opus 4.8 / Sonnet 5 / Haiku. Under an Opus parent Fable 5 is consulted as a persistent advisor at mandatory escalation triggers; under a Fable parent the orchestrator is the top judgment tier itself.",
-  "version": "0.5.0",
+  "version": "1.0.0",
   "author": {
     "name": "KyongSik Yoon"
   },
-  "homepage": "https://github.com/KyongSik-Yoon/opus-5-router",
-  "repository": "https://github.com/KyongSik-Yoon/opus-5-router",
+  "homepage": "https://github.com/KyongSik-Yoon/baton",
+  "repository": "https://github.com/KyongSik-Yoon/baton",
   "license": "MIT",
   "keywords": ["claude", "orchestrator", "token-saving", "subagents", "hooks", "skill"]
 }

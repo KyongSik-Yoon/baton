@@ -280,19 +280,25 @@ CASES = [
     (False, "env gh pr create"),
 
     # --- flag-file management forms (allow: exact skill commands only) ---
-    (True, "printf 'advisor=fable\\n' > ~/.claude/opus5-router"),
-    (True, "printf 'advisor=none\\n' > ~/.claude/opus5-router"),
-    (True, "printf 'advisor=fable\\nparent=opus\\n' > ~/.claude/opus5-router"),
-    (True, "printf 'advisor=none\\nparent=fable\\n' > ~/.claude/opus5-router"),
+    (True, "printf 'advisor=fable\\n' > ~/.claude/baton"),
+    (True, "printf 'advisor=none\\n' > ~/.claude/baton"),
+    (True, "printf 'advisor=fable\\nparent=opus\\n' > ~/.claude/baton"),
+    (True, "printf 'advisor=none\\nparent=fable\\n' > ~/.claude/baton"),
+    (True, "rm -f ~/.claude/baton"),
     (True, "rm -f ~/.claude/opus5-router"),
 
+    # --- legacy flag path: removable only, never writable ---
+    (False, "printf 'advisor=fable\\n' > ~/.claude/opus5-router"),
+    (False, "printf 'advisor=fable\\nparent=fable\\n' > ~/.claude/opus5-router"),
+    (False, "touch ~/.claude/opus5-router"),
+
     # --- flag-file management: everything off the exact forms stays denied ---
-    (False, "printf 'advisor=fable\\nparent=haiku\\n' > ~/.claude/opus5-router"),
-    (False, "printf 'parent=fable\\n' > ~/.claude/opus5-router"),
+    (False, "printf 'advisor=fable\\nparent=haiku\\n' > ~/.claude/baton"),
+    (False, "printf 'parent=fable\\n' > ~/.claude/baton"),
     (False, "printf 'advisor=fable\\nparent=fable\\n' > /etc/passwd"),
-    (False, "printf 'advisor=fable\\nparent=fable\\n' >> ~/.claude/opus5-router"),
-    (False, "printf 'advisor=fable\\nparent=fable\\n' > ~/.claude/opus5-router2"),
-    (False, "printf 'advisor=fable\\nparent=fable\\nx=$(rm -rf /)\\n' > ~/.claude/opus5-router"),
+    (False, "printf 'advisor=fable\\nparent=fable\\n' >> ~/.claude/baton"),
+    (False, "printf 'advisor=fable\\nparent=fable\\n' > ~/.claude/baton2"),
+    (False, "printf 'advisor=fable\\nparent=fable\\nx=$(rm -rf /)\\n' > ~/.claude/baton"),
 ]
 
 

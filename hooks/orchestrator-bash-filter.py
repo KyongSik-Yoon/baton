@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bash policy for opus5-router's main-agent guard.
+"""Bash policy for baton's main-agent guard.
 
 stdin: the PreToolUse JSON for a Bash call from the MAIN agent (the guard has
 already checked the flag file and filtered out subagent calls). stdout: empty
@@ -178,7 +178,10 @@ HERDR_RO = {
 # Groups whose bare form just prints help; includes read-only-less groups so
 # `herdr worktree`/`herdr server` print usage without invoking a mutator.
 HERDR_GROUPS = set(HERDR_RO) | {"worktree", "server"}
-FLAG_PATH = r"(~|\$HOME|\$\{HOME\})/\.claude/opus5-router"
+FLAG_PATH = r"(~|\$HOME|\$\{HOME\})/\.claude/baton"
+# Pre-rename (opus-5-router era) flag path: removable for migration cleanup,
+# never writable.
+LEGACY_FLAG_PATH = r"(~|\$HOME|\$\{HOME\})/\.claude/opus5-router"
 # The skill itself toggles the flag file from the main agent, so these exact
 # management forms must pass even though touch/rm/redirection are otherwise out.
 # The written content is `advisor=<v>` optionally followed by `parent=<v>` on a
@@ -186,7 +189,7 @@ FLAG_PATH = r"(~|\$HOME|\$\{HOME\})/\.claude/opus5-router"
 # be the redirect target.
 FLAG_MGMT = re.compile(
     r"^\s*(touch\s+[\x22\x27]?" + FLAG_PATH + r"[\x22\x27]?"
-    r"|rm\s+-f\s+[\x22\x27]?" + FLAG_PATH + r"[\x22\x27]?"
+    r"|rm\s+-f\s+[\x22\x27]?(" + FLAG_PATH + r"|" + LEGACY_FLAG_PATH + r")[\x22\x27]?"
     r"|(echo|printf)\s+[\x22\x27]?advisor=(fable|none)"
     r"(\\nparent=(opus|fable))?(\\n)?[\x22\x27]?\s*>\s*[\x22\x27]?"
     + FLAG_PATH + r"[\x22\x27]?)\s*$"
