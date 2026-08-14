@@ -9,8 +9,18 @@ FLAG="${HOME}/.claude/opus5-router"
 
 advisor=$(sed -n 's/^advisor=//p' "$FLAG" | tail -1)
 [ -n "$advisor" ] || advisor=fable
+parent=$(sed -n 's/^parent=//p' "$FLAG" | tail -1)
+[ -n "$parent" ] || parent=opus
 
-if [ "$advisor" = "none" ]; then
+if [ "$parent" = "fable" ]; then
+  # Fable parent: the orchestrator IS the top judgment tier — design/ambiguity
+  # triggers are decided in place, only the independent final review is farmed out.
+  if [ "$advisor" = "none" ]; then
+    ADV="You are the top judgment tier (parent=fable): decide design, escalation, and ambiguity triggers yourself; route only the final review of high-consequence changes to opus-5-router:reviewer-xhigh as an independent pass."
+  else
+    ADV="You are the top judgment tier (parent=fable): decide design, escalation, and ambiguity triggers yourself. The fable advisor (opus-5-router:advisor) is an opt-in fresh-context second opinion — consult it only when independent judgment genuinely adds signal, and keep one alive via SendMessage instead of respawning it."
+  fi
+elif [ "$advisor" = "none" ]; then
   ADV="The fable advisor is disabled (advisor=none): at advisor triggers, ask the user via AskUserQuestion instead."
 else
   ADV="Consult the fable advisor (subagent type opus-5-router:advisor) only at the skill's mandatory triggers, and keep one advisor alive across the session via SendMessage instead of respawning it."

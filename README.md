@@ -2,9 +2,9 @@
 
 [README.ko.md](README.ko.md)
 
-Run an **Opus 5 session as a pure orchestrator** — it thinks, decomposes, delegates, and reviews, but never edits. Useful when Opus 5's direct coding underwhelms but its orchestration holds up, and when you want Fable 5 spent only on judgment.
+Run your **session as a pure orchestrator** — it thinks, decomposes, delegates, and reviews, but never edits. Despite the name, the parent model is a profile, not an assumption: with an **Opus 5 parent** you get orchestration on the cheap with Fable 5 imported only for judgment; with a **Fable 5 parent** you get top-tier judgment orchestrating directly while implementation still goes to cheap pinned workers. The enforcement layer never inspects the parent model, so both profiles are enforced identically.
 
-Sibling project: the [fable-router](https://github.com/KyongSik-Yoon/fable-router) plugin takes the opposite approach — Fable 5 as the parent, routing delegable stages down to cheaper models. This plugin previously bundled that skill; it now lives only in its own repository.
+Sibling project: the [fable-router](https://github.com/KyongSik-Yoon/fable-router) plugin takes a prompt-routing approach — Fable 5 as the parent, routing delegable stages down to cheaper models by convention. This plugin's `parent=fable` profile covers the same intent with mechanical enforcement instead. The fable-router skill previously bundled here now lives only in its own repository.
 
 ## How it works
 
@@ -21,14 +21,21 @@ Implementation goes to workers pinned by frontmatter model ID, so the tiers hold
 | `opus-5-router:reviewer-xhigh` | `claude-opus-4-8` | xhigh | adversarial read-only review of high-consequence diffs; handles the final-review trigger when advisor=none |
 | `opus-5-router:advisor` | `fable` | high | persistent senior advisor, read-only |
 
-Fable is consulted only at mandatory triggers (architecture decisions, twice-failed validation after a tier escalation, conflicting evidence, final review of high-consequence changes), as **one persistent advisor agent** continued via SendMessage rather than respawned per question. With `advisor=none` — e.g. once your Fable quota is spent — the design/ambiguity triggers resolve via AskUserQuestion instead, while the final-review trigger routes to `opus-5-router:reviewer-xhigh`.
+How the escalation triggers (architecture decisions, twice-failed validation after a tier escalation, conflicting evidence, final review of high-consequence changes) resolve depends on the `parent=` profile in the flag file:
+
+- **`parent=opus`** (default): Fable is consulted at the triggers as **one persistent advisor agent**, continued via SendMessage rather than respawned per question. With `advisor=none` — e.g. once your Fable quota is spent — the design/ambiguity triggers resolve via AskUserQuestion instead, while the final-review trigger routes to `opus-5-router:reviewer-xhigh`.
+- **`parent=fable`**: the orchestrator is itself the top judgment tier — it decides the design/ambiguity triggers in place, and only the final-review trigger is farmed out (to `opus-5-router:reviewer-xhigh`, for independence rather than capability). The advisor defaults to `none` here; `advisor=fable` opts into a fresh-context second opinion on the same tier.
+
+On `/opus5-router on` without an explicit `parent=`, the skill defaults the profile from the session's own model identity.
 
 ## Usage
 
 ```
-/opus5-router on              # advisor=fable (default)
-/opus5-router on advisor=none # pure Opus mode, no Fable at all
-/opus5-router advisor none    # switch advisor while staying on
+/opus5-router on               # parent auto-detected; advisor=fable under opus, none under fable
+/opus5-router on advisor=none  # opus parent without Fable at all
+/opus5-router on parent=fable  # Fable-parent profile explicitly
+/opus5-router advisor none     # switch advisor while staying on
+/opus5-router parent fable     # switch parent profile while staying on
 /opus5-router status
 /opus5-router off
 ```
@@ -44,7 +51,7 @@ The plugin install is required for the mode to actually enforce anything — the
 
 ## Notes
 
-- The skill cannot switch your session model. Pin it per project with `"model": "claude-opus-5"` in `.claude/settings.json`, or use `/model`.
-- Don't run it together with the fable-router plugin's auto mode — one assumes a Fable parent, the other an Opus parent. `/opus5-router on` warns if both flags are set.
+- The skill cannot switch your session model. Pin it per project with `"model": "claude-opus-5"` (or `"claude-fable-5"`) in `.claude/settings.json`, or use `/model`.
+- Don't run it together with the fable-router plugin's auto mode — even under `parent=fable` they are two competing routing schemes over the same session. `/opus5-router on` warns if both flags are set.
 - The Bash filter aims to make bypasses hard, not impossible: the enforcement target is model drift, not an adversary.
 - Why the scout stays on Haiku: recon cost is dominated by input tokens, where effort settings don't help and Sonnet 5's new tokenizer (~30% more tokens for the same text) widens the sticker 3x price gap to ~4x in practice (~2.6x under the intro pricing that ends 2026-08-31). Recon that needs interpretation rather than scanning exceeds Haiku's floor — route it to `opus-5-router:scout-sonnet`.

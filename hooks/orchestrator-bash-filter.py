@@ -181,10 +181,14 @@ HERDR_GROUPS = set(HERDR_RO) | {"worktree", "server"}
 FLAG_PATH = r"(~|\$HOME|\$\{HOME\})/\.claude/opus5-router"
 # The skill itself toggles the flag file from the main agent, so these exact
 # management forms must pass even though touch/rm/redirection are otherwise out.
+# The written content is `advisor=<v>` optionally followed by `parent=<v>` on a
+# second line; both values are closed enums, and only the flag file itself may
+# be the redirect target.
 FLAG_MGMT = re.compile(
     r"^\s*(touch\s+[\x22\x27]?" + FLAG_PATH + r"[\x22\x27]?"
     r"|rm\s+-f\s+[\x22\x27]?" + FLAG_PATH + r"[\x22\x27]?"
-    r"|(echo|printf)\s+[\x22\x27]?advisor=(fable|none)(\\n)?[\x22\x27]?\s*>\s*[\x22\x27]?"
+    r"|(echo|printf)\s+[\x22\x27]?advisor=(fable|none)"
+    r"(\\nparent=(opus|fable))?(\\n)?[\x22\x27]?\s*>\s*[\x22\x27]?"
     + FLAG_PATH + r"[\x22\x27]?)\s*$"
 )
 
