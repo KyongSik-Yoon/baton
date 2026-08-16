@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>baton — the one holding the baton makes no sound</title>
+<meta name="description" content="A Claude Code plugin that runs your session as a hook-enforced pure orchestrator. The main agent thinks, decomposes, delegates and reviews — a PreToolUse hook makes sure it never edits.">
+<meta name="theme-color" content="#17181a">
+<meta property="og:type" content="website">
+<meta property="og:title" content="baton — run your session as a pure orchestrator">
+<meta property="og:description" content="Telling a model to delegate is a suggestion. baton removes the option: while the mode flag exists, the main agent's edits and mutating Bash are denied at the hook layer.">
+<meta property="og:url" content="https://kyongsik-yoon.github.io/baton/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2317181a'/%3E%3Crect x='6' y='14' width='20' height='4.5' rx='2.25' fill='%239245db' transform='rotate(-38 16 16)'/%3E%3Ccircle cx='9.6' cy='22.4' r='3.1' fill='%236fe09e'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+:root{
+  --ink:#17181a;
+  --ink-2:#1b1c1f;
+  --navy:#242635;
+  --purple:#9245db;
+  --purple-lo:#a86ae4;
+  --purple-dim:rgba(146,69,219,.14);
+  --mint:#6fe09e;
+  --fg:#ffffff;
+  --fg-2:#b7bac1;
+  --fg-3:#83868e;
+  --line:rgba(255,255,255,.09);
+  --line-2:rgba(255,255,255,.16);
+  --sans:'IBM Plex Sans',Pretendard,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --pad:clamp(20px,5vw,40px);
+  --maxw:1120px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{
+  margin:0;background:var(--ink);color:var(--fg);
+  font-family:var(--sans);font-size:16px;line-height:1.62;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;
+  font-feature-settings:"kern" 1;
+}
+/* Korean reads badly when a line breaks mid-word; keep-all wraps on spaces
+   instead, with break-word left as the escape hatch for long code tokens. */
+body{word-break:keep-all;overflow-wrap:break-word}
+a{color:inherit}
+::selection{background:var(--purple);color:#fff}
+
+/* ---------- language switching ---------- */
+/* Only ever hides — never re-declares `display`, so author layout rules
+   (flex/grid) on a translated element survive the switch. */
+html[data-lang="en"] body [lang="ko"]{display:none}
+html[data-lang="ko"] body [lang="en"]{display:none}
+
+/* ---------- layout ---------- */
+.wrap{max-width:var(--maxw);margin:0 auto;padding-inline:var(--pad)}
+section{position:relative}
+.rule{border-top:1px solid var(--line)}
+
+/* ---------- header ---------- */
+header{
+  position:sticky;top:0;z-index:50;
+  background:rgba(23,24,26,.78);backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);
+}
+.bar{display:flex;align-items:center;gap:28px;height:62px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:600;letter-spacing:-.02em}
+.brand svg{display:block}
+.brand span{font-size:17px}
+nav{display:flex;gap:26px;margin-left:auto;font-size:14px;color:var(--fg-2)}
+nav a{text-decoration:none;transition:color .15s}
+nav a:hover{color:var(--fg)}
+.hdr-right{display:flex;align-items:center;gap:12px;margin-left:auto}
+nav+.hdr-right{margin-left:0}
+.langbtn{
+  display:inline-flex;border:1px solid var(--line-2);border-radius:999px;
+  overflow:hidden;font-family:var(--mono);font-size:11.5px;letter-spacing:.02em;
+}
+.langbtn button{
+  appearance:none;background:none;border:0;color:var(--fg-3);
+  padding:5px 11px;cursor:pointer;font:inherit;transition:.15s;white-space:nowrap;
+}
+.langbtn button:hover{color:var(--fg)}
+.langbtn button[aria-pressed="true"]{background:var(--purple);color:#fff}
+.gh{
+  display:inline-flex;align-items:center;gap:7px;text-decoration:none;
+  font-size:13.5px;color:var(--fg-2);border:1px solid var(--line-2);
+  border-radius:8px;padding:6px 12px;transition:.15s;white-space:nowrap;
+}
+.gh:hover{color:var(--fg);border-color:var(--fg-3)}
+@media(max-width:860px){nav{display:none}}
+
+/* ---------- hero ---------- */
+.hero{padding:clamp(64px,11vw,124px) 0 clamp(56px,8vw,96px);overflow:hidden}
+.hero::before{
+  content:"";position:absolute;inset:-40% -10% auto -10%;height:150%;
+  background:radial-gradient(60% 50% at 22% 28%,rgba(146,69,219,.30),transparent 62%),
+             radial-gradient(46% 40% at 84% 8%,rgba(111,224,158,.09),transparent 64%);
+  pointer-events:none;
+}
+.hero .wrap{position:relative}
+.eyebrow{
+  display:inline-flex;align-items:center;gap:9px;font-family:var(--mono);
+  font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3);
+  border:1px solid var(--line-2);border-radius:999px;padding:5px 13px;margin-bottom:26px;
+}
+.eyebrow i{width:5px;height:5px;border-radius:50%;background:var(--mint);display:block}
+h1{
+  margin:0;font-size:clamp(34px,6.2vw,68px);line-height:1.07;
+  letter-spacing:-.035em;font-weight:700;max-width:15ch;
+}
+html[data-lang="ko"] h1{max-width:18ch;letter-spacing:-.045em;line-height:1.18}
+.lead{
+  margin:26px 0 0;max-width:60ch;font-size:clamp(16px,1.7vw,19px);
+  line-height:1.68;color:var(--fg-2);
+}
+.lead b{color:var(--fg);font-weight:600}
+.hero-cta{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-top:38px}
+.btn{
+  display:inline-flex;align-items:center;gap:9px;text-decoration:none;
+  border-radius:9px;padding:12px 20px;font-size:14.5px;font-weight:500;
+  border:1px solid transparent;transition:.16s;cursor:pointer;font-family:inherit;
+}
+.btn-primary{background:var(--purple);color:#fff}
+.btn-primary:hover{background:var(--purple-lo)}
+.btn-ghost{border-color:var(--line-2);color:var(--fg-2)}
+.btn-ghost:hover{color:var(--fg);border-color:var(--fg-3)}
+.hero-meta{
+  display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:34px;
+  font-family:var(--mono);font-size:12.5px;color:var(--fg-3);
+}
+.hero-meta span{display:inline-flex;align-items:center;gap:7px}
+.hero-meta span::before{content:"";width:4px;height:4px;border-radius:50%;background:var(--purple-lo)}
+
+/* ---------- copy line ---------- */
+.copyline{
+  display:flex;align-items:stretch;border:1px solid var(--line-2);border-radius:9px;
+  background:rgba(255,255,255,.03);overflow:hidden;max-width:100%;
+}
+.copyline code{
+  font-family:var(--mono);font-size:13.5px;padding:12px 15px;color:var(--fg);
+  white-space:nowrap;overflow-x:auto;scrollbar-width:none;
+}
+.copyline code::-webkit-scrollbar{display:none}
+.copyline code::before{content:"$ ";color:var(--purple-lo)}
+.copyline button{
+  appearance:none;background:none;border:0;border-left:1px solid var(--line);
+  color:var(--fg-3);padding:0 13px;cursor:pointer;font-family:var(--mono);
+  font-size:11.5px;transition:.15s;flex:none;
+}
+.copyline button:hover{color:var(--fg);background:rgba(255,255,255,.05)}
+.copyline button.done{color:var(--mint)}
+
+/* ---------- section shell ---------- */
+.sec{padding:clamp(64px,9vw,110px) 0}
+.sec-head{display:flex;gap:clamp(20px,4vw,56px);flex-wrap:wrap;margin-bottom:clamp(36px,5vw,60px)}
+.sec-num{
+  font-family:var(--mono);font-size:13px;color:var(--purple-lo);
+  padding-top:.55em;letter-spacing:.06em;flex:none;
+}
+.sec-title{flex:1 1 460px;min-width:0}
+h2{
+  margin:0;font-size:clamp(26px,3.6vw,42px);line-height:1.16;
+  letter-spacing:-.03em;font-weight:700;max-width:22ch;
+}
+.sec-title p{margin:18px 0 0;color:var(--fg-2);max-width:62ch;font-size:16.5px}
+p code,dd code,li code,.desc code,.note code{
+  font-family:var(--mono);font-size:.88em;color:var(--fg);
+  background:rgba(255,255,255,.07);border-radius:5px;padding:1.5px 5px;
+}
+
+/* ---------- cards ---------- */
+.grid{display:grid;gap:14px}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g2{grid-template-columns:repeat(2,1fr)}
+@media(max-width:900px){.g3{grid-template-columns:1fr}.g2{grid-template-columns:1fr}}
+.card{
+  border:1px solid var(--line);border-radius:14px;padding:26px;
+  background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.012));
+}
+.card .stat{
+  font-size:clamp(24px,3vw,32px);font-weight:700;letter-spacing:-.03em;
+  line-height:1.1;margin-bottom:12px;color:var(--fg);
+}
+.card .stat em{font-style:normal;color:var(--purple-lo)}
+.card p{margin:0;color:var(--fg-2);font-size:14.8px;line-height:1.62}
+
+/* ---------- terminal ---------- */
+.term{
+  border:1px solid var(--line);border-radius:14px;overflow:hidden;
+  background:#141517;box-shadow:0 30px 60px -30px rgba(0,0,0,.8);
+}
+.term-bar{
+  display:flex;align-items:center;gap:8px;padding:11px 15px;
+  border-bottom:1px solid var(--line);background:rgba(255,255,255,.02);
+}
+.term-bar i{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.14);display:block}
+.term-bar span{
+  margin-left:8px;font-family:var(--mono);font-size:11.5px;color:var(--fg-3);
+}
+.term pre{
+  margin:0;padding:20px 18px;overflow-x:auto;
+  font-family:var(--mono);font-size:12.9px;line-height:1.78;color:var(--fg-2);
+}
+.term .u{color:var(--fg)}
+.term .p{color:var(--purple-lo)}
+.term .m{color:var(--mint)}
+.term .d{color:var(--fg-3)}
+.term .x{color:#e2708a}
+
+/* ---------- diagram ---------- */
+.figure{margin:0}
+.figscroll{overflow-x:auto;padding-bottom:6px}
+.figscroll svg{display:block;min-width:700px;width:100%;height:auto}
+figcaption{
+  margin-top:16px;font-size:13.5px;color:var(--fg-3);max-width:66ch;
+}
+
+/* ---------- agent list ---------- */
+.agents{display:grid;gap:12px;grid-template-columns:repeat(2,1fr)}
+@media(max-width:820px){.agents{grid-template-columns:1fr}}
+.agent{
+  border:1px solid var(--line);border-radius:13px;padding:20px 22px;
+  background:rgba(255,255,255,.02);transition:.18s;
+}
+.agent:hover{border-color:var(--line-2);background:rgba(255,255,255,.04)}
+.agent h3{
+  margin:0 0 10px;font-family:var(--mono);font-size:14.5px;font-weight:500;
+  color:var(--fg);letter-spacing:-.01em;
+}
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.pill{
+  font-family:var(--mono);font-size:11px;letter-spacing:.01em;
+  border-radius:999px;padding:3px 9px;border:1px solid var(--line-2);color:var(--fg-3);
+}
+.pill.model{border-color:rgba(146,69,219,.45);color:var(--purple-lo);background:var(--purple-dim)}
+.pill.eff{border-color:rgba(111,224,158,.3);color:var(--mint)}
+.agent p{margin:0;font-size:14.4px;color:var(--fg-2);line-height:1.6}
+
+/* ---------- profiles ---------- */
+.prof{
+  border:1px solid var(--line);border-radius:16px;overflow:hidden;
+  background:linear-gradient(180deg,rgba(255,255,255,.035),transparent);
+}
+.prof-top{padding:22px 26px 20px;border-bottom:1px solid var(--line)}
+.prof-top .tag{
+  font-family:var(--mono);font-size:12.5px;color:var(--purple-lo);
+  display:inline-block;margin-bottom:9px;
+}
+.prof-top h3{margin:0;font-size:20px;letter-spacing:-.02em;font-weight:600}
+.prof-body{padding:22px 26px 26px}
+.prof-body p{margin:0 0 16px;font-size:14.8px;color:var(--fg-2)}
+.prof-body p:last-child{margin-bottom:0}
+.prof-body dl{margin:0;display:grid;gap:10px}
+.prof-body dt{
+  font-family:var(--mono);font-size:11.5px;color:var(--fg-3);
+  text-transform:uppercase;letter-spacing:.05em;
+}
+.prof-body dd{margin:2px 0 0;font-size:14.5px;color:var(--fg-2)}
+
+/* ---------- triggers ---------- */
+.trig{list-style:none;margin:0;padding:0;display:grid;gap:0;counter-reset:t}
+.trig li{
+  counter-increment:t;display:flex;gap:20px;padding:20px 0;
+  border-top:1px solid var(--line);font-size:15.5px;color:var(--fg-2);
+}
+.trig li:last-child{border-bottom:1px solid var(--line)}
+.trig li::before{
+  content:"0" counter(t);font-family:var(--mono);font-size:12.5px;
+  color:var(--purple-lo);flex:none;padding-top:.28em;
+}
+.trig b{color:var(--fg);font-weight:600}
+
+/* ---------- note / quote ---------- */
+.note{
+  border-left:2px solid var(--purple);padding:4px 0 4px 22px;
+  color:var(--fg-2);font-size:15px;max-width:70ch;
+}
+.note strong{color:var(--fg);font-weight:600;display:block;margin-bottom:6px}
+
+/* ---------- install steps ---------- */
+.steps{display:grid;gap:12px;counter-reset:s}
+.step{
+  display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center;
+  border:1px solid var(--line);border-radius:12px;padding:16px 18px;
+  background:rgba(255,255,255,.02);
+}
+.step .n{
+  font-family:var(--mono);font-size:12px;color:var(--fg-3);
+  width:26px;height:26px;border:1px solid var(--line-2);border-radius:50%;
+  display:grid;place-items:center;
+}
+.step .body{min-width:0}
+.step .desc{font-size:13.5px;color:var(--fg-3);margin-top:9px}
+
+/* ---------- cmd table ---------- */
+.cmds{display:grid;gap:0;margin-top:14px}
+.cmd{
+  display:grid;grid-template-columns:minmax(180px,auto) 1fr;gap:12px 26px;
+  padding:13px 0;border-top:1px solid var(--line);align-items:baseline;
+}
+.cmd:last-child{border-bottom:1px solid var(--line)}
+.cmd code{font-family:var(--mono);font-size:13px;color:var(--fg);white-space:nowrap}
+.cmd span{font-size:14.3px;color:var(--fg-2)}
+@media(max-width:640px){.cmd{grid-template-columns:1fr;gap:5px}}
+
+/* ---------- footer ---------- */
+footer{border-top:1px solid var(--line);padding:44px 0 56px;color:var(--fg-3);font-size:14px}
+.foot{display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start;justify-content:space-between}
+.foot-links{display:flex;flex-wrap:wrap;gap:8px 22px}
+.foot-links a{text-decoration:none;transition:.15s}
+.foot-links a:hover{color:var(--fg)}
+.foot-note{font-size:13px;max-width:44ch;line-height:1.6}
+
+/* ---------- reveal ---------- */
+.rv{opacity:0;transform:translateY(14px);transition:opacity .6s ease,transform .6s cubic-bezier(.2,.7,.2,1)}
+.rv.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.rv{opacity:1;transform:none;transition:none}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <a class="brand" href="#top">
+      <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
+        <rect x="6" y="14" width="20" height="4.5" rx="2.25" fill="#9245db" transform="rotate(-38 16 16)"/>
+        <circle cx="9.6" cy="22.4" r="3.1" fill="#6fe09e"/>
+      </svg>
+      <span>baton</span>
+    </a>
+    <nav>
+      <a href="#why"><span lang="en">Why</span><span lang="ko">왜</span></a>
+      <a href="#how"><span lang="en">How it works</span><span lang="ko">동작 방식</span></a>
+      <a href="#bench"><span lang="en">The bench</span><span lang="ko">에이전트</span></a>
+      <a href="#profiles"><span lang="en">Profiles</span><span lang="ko">프로파일</span></a>
+      <a href="#install"><span lang="en">Install</span><span lang="ko">설치</span></a>
+    </nav>
+    <div class="hdr-right">
+      <div class="langbtn" role="group" aria-label="Language">
+        <button type="button" data-setlang="en" aria-pressed="true">EN</button>
+        <button type="button" data-setlang="ko" aria-pressed="false">한국어</button>
+      </div>
+      <a class="gh" href="https://github.com/KyongSik-Yoon/baton" rel="noopener">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        <span>GitHub</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="wrap">
+    <p class="eyebrow"><i></i><span lang="en">Claude Code plugin</span><span lang="ko">Claude Code 플러그인</span></p>
+
+    <h1>
+      <span lang="en">The one holding the baton makes no sound.</span>
+      <span lang="ko">바톤을 든 사람은 소리를 내지 않는다.</span>
+    </h1>
+
+    <p class="lead" lang="en">
+      <b>baton</b> runs your Claude Code session as a pure orchestrator. It thinks, decomposes,
+      delegates and reviews — and a <code>PreToolUse</code> hook makes sure it never edits a file
+      itself. The rule doesn't live in a prompt where a model can talk itself out of it.
+      It lives in the tool layer.
+    </p>
+    <p class="lead" lang="ko">
+      <b>baton</b>은 Claude Code 세션을 순수 오케스트레이터로 돌린다. 사고하고, 분해하고,
+      위임하고, 리뷰할 뿐 직접 파일을 고치지 않는다 — <code>PreToolUse</code> 훅이 그것을
+      보장한다. 규칙이 모델을 설득할 수 있는 프롬프트가 아니라 도구 계층에 있다.
+    </p>
+
+    <div class="hero-cta">
+      <div class="copyline">
+        <code>/plugin marketplace add KyongSik-Yoon/baton</code>
+        <button type="button" data-copy="/plugin marketplace add KyongSik-Yoon/baton" aria-label="Copy install command">copy</button>
+      </div>
+      <a class="btn btn-ghost" href="#how">
+        <span lang="en">See how it works</span><span lang="ko">동작 방식 보기</span>
+      </a>
+    </div>
+
+    <p class="hero-meta">
+      <span lang="en">6 pinned workers</span><span lang="ko">핀 고정 워커 6종</span>
+      <span lang="en">2 parent profiles</span><span lang="ko">부모 프로파일 2종</span>
+      <span lang="en">0 edits from the parent</span><span lang="ko">부모의 직접 수정 0건</span>
+      <span>MIT</span>
+    </p>
+  </div>
+</section>
+
+<!-- ============ 01 WHY ============ -->
+<section class="sec rule" id="why">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <div class="sec-num">01</div>
+      <div class="sec-title">
+        <h2>
+          <span lang="en">Your most expensive model shouldn't be typing.</span>
+          <span lang="ko">가장 비싼 모델이 타이핑을 하고 있으면 안 된다.</span>
+        </h2>
+        <p lang="en">
+          Telling a model to delegate is a suggestion. It holds for a few turns, then drifts back
+          to editing files itself — usually right when the task gets interesting enough for the
+          drift to matter. baton removes the option. While the flag file <code>~/.claude/baton</code>
+          exists, the main agent's <code>Write</code>, <code>Edit</code> and <code>NotebookEdit</code>
+          are denied at the hook layer, and Bash is filtered down to read-only inspection plus
+          test, lint and typecheck. The deny reason is written to steer, not to scold: it names the
+          worker the change should have gone to.
+        </p>
+        <p lang="ko">
+          모델에게 "위임하라"고 말하는 것은 제안일 뿐이다. 몇 턴은 지켜지다가 결국 직접 파일을
+          고치는 쪽으로 돌아간다 — 하필 그 이탈이 문제가 될 만큼 작업이 흥미로워지는 시점에.
+          baton은 그 선택지를 없앤다. 플래그 파일 <code>~/.claude/baton</code>이 존재하는 동안
+          메인 에이전트의 <code>Write</code>·<code>Edit</code>·<code>NotebookEdit</code>은 훅
+          계층에서 거부되고, Bash는 읽기 전용 조회와 테스트·린트·타입체크로 좁혀진다. 거부 사유는
+          꾸짖기 위한 문구가 아니라 유도하기 위한 문구다 — 그 변경이 갔어야 할 워커를 지목한다.
+        </p>
+      </div>
+    </div>
+
+    <div class="grid g3 rv">
+      <div class="card">
+        <div class="stat"><em>0</em> <span lang="en">parent edits</span><span lang="ko">부모의 직접 수정</span></div>
+        <p lang="en">Write, Edit and NotebookEdit are denied for the main agent while the mode is on. There is no verbal exception it can grant itself.</p>
+        <p lang="ko">모드가 켜져 있는 동안 메인 에이전트의 Write·Edit·NotebookEdit은 거부된다. 스스로 만들어 낼 수 있는 예외는 없다.</p>
+      </div>
+      <div class="card">
+        <div class="stat"><em>Default-deny</em> Bash</div>
+        <p lang="en">The filter is an allowlist, not a blocklist. A wrapper like <code>env rm -rf .</code> reads as read-only at a glance and is exactly the shape a blocklist misses.</p>
+        <p lang="ko">Bash 필터는 블록리스트가 아니라 허용리스트다. <code>env rm -rf .</code> 같은 래퍼는 얼핏 읽기 전용처럼 보이는데, 블록리스트가 놓치는 것이 정확히 그 형태다.</p>
+      </div>
+      <div class="card">
+        <div class="stat"><em>1</em> <span lang="en">level deep</span><span lang="ko">단계 깊이</span></div>
+        <p lang="en">Workers never spawn workers, and the advisor never implements. The tree you review is the tree that ran.</p>
+        <p lang="ko">워커는 자식을 만들지 않고, 어드바이저는 구현하지 않는다. 리뷰하는 트리가 곧 실행된 트리다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 02 HOW ============ -->
+<section class="sec rule" id="how">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <div class="sec-num">02</div>
+      <div class="sec-title">
+        <h2>
+          <span lang="en">Enforcement, not encouragement.</span>
+          <span lang="ko">권고가 아니라 강제.</span>
+        </h2>
+        <p lang="en">
+          Two hooks do the whole job. A <code>UserPromptSubmit</code> hook injects the orchestrator
+          posture each turn so the model delegates by intent rather than by collision. A
+          <code>PreToolUse</code> hook enforces it when intent slips. Subagent calls pass the guard
+          untouched — and the distinction is structural, not a name check: a subagent's hook input
+          carries <code>agent_id</code>, the main agent's never does.
+        </p>
+        <p lang="ko">
+          훅 두 개가 전부다. <code>UserPromptSubmit</code> 훅이 매 턴 오케스트레이터 태세를 주입해
+          모델이 부딪혀서가 아니라 의도적으로 위임하게 만들고, <code>PreToolUse</code> 훅이 그
+          의도가 흔들릴 때 강제한다. 서브에이전트 호출은 가드를 그대로 통과한다 — 이름 비교가 아니라
+          구조적 구분이다: 서브에이전트의 훅 입력에는 <code>agent_id</code>가 실려 오고, 메인
+          에이전트에는 절대 실리지 않는다.
+        </p>
+      </div>
+    </div>
+
+    <div class="grid g2 rv" style="align-items:start">
+      <div class="term">
+        <div class="term-bar"><i></i><i></i><i></i><span>claude — baton mode ON</span></div>
+<pre><span class="d">&gt;</span> <span class="u">/baton on</span>
+  <span class="m">baton mode ON</span> <span class="d">·</span> parent=opus <span class="d">·</span> advisor=fable
+
+<span class="p">⏺</span> <span class="u">Edit</span>(hooks/orchestrator-bash-filter.py)
+  <span class="x">✗ denied</span> <span class="d">orchestrator mode: direct edits are
+    disabled for the main agent. Delegate this
+    change to a worker subagent (coder-sonnet for
+    standard work, coder-opus48 for complex work).</span>
+
+<span class="p">⏺</span> <span class="u">Task</span>(baton:coder-opus48) <span class="d">claude-opus-4-8 · high</span>
+  <span class="m">✓</span> 1 file changed, 34 insertions(+), 9 deletions(-)
+
+<span class="p">⏺</span> <span class="u">Bash</span>(git diff --stat) <span class="d">— read-only, allowed</span>
+</pre>
+      </div>
+
+      <div style="display:grid;gap:14px">
+        <div class="card">
+          <div class="stat" style="font-size:19px"><span lang="en">What still passes</span><span lang="ko">그래도 통과하는 것</span></div>
+          <p lang="en">Read-only inspection (<code>git diff</code>, <code>git log</code>, <code>rg</code>, <code>ls</code>), test/lint/typecheck runs, and the skill's own flag-file commands. You review the diffs and re-run the validation yourself — a worker's report is a claim, not evidence.</p>
+          <p lang="ko">읽기 전용 조회(<code>git diff</code>, <code>git log</code>, <code>rg</code>, <code>ls</code>), 테스트·린트·타입체크 실행, 그리고 스킬 자신의 플래그 파일 명령. 디프를 읽고 검증을 다시 돌리는 것은 오케스트레이터의 몫이다 — 워커의 보고는 증거가 아니라 주장이다.</p>
+        </div>
+        <div class="card">
+          <div class="stat" style="font-size:19px"><span lang="en">What gets delegated</span><span lang="ko">위임되는 것</span></div>
+          <p lang="en">Every mutation, including <code>git add</code> / <code>commit</code> / <code>push</code>. Each worker gets a narrow packet: objective, evidence as paths rather than dumps, allowed write surface, non-goals, acceptance criteria, validation command.</p>
+          <p lang="ko">모든 변경, <code>git add</code>·<code>commit</code>·<code>push</code>까지. 각 워커는 좁은 패킷을 받는다: 목표, 덤프가 아닌 경로 형태의 근거, 허용된 쓰기 범위, 비목표, 수용 기준, 검증 명령.</p>
+        </div>
+      </div>
+    </div>
+
+    <figure class="figure rv" style="margin-top:38px">
+      <div class="figscroll">
+        <svg viewBox="0 0 900 344" role="img" aria-labelledby="digt">
+          <title id="digt">Diagram: the PreToolUse guard blocks the main agent's edits and mutating Bash, while Task delegations pass through to pinned workers.</title>
+          <defs>
+            <marker id="ah" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+              <path d="M0 0.5 L8.5 4.5 L0 8.5 z" fill="#6fe09e"/>
+            </marker>
+            <marker id="ahd" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+              <path d="M0 0.5 L8.5 4.5 L0 8.5 z" fill="#83868e"/>
+            </marker>
+          </defs>
+
+          <!-- orchestrator -->
+          <rect x="14" y="118" width="196" height="112" rx="14" fill="rgba(146,69,219,.10)" stroke="#9245db" stroke-width="1.2"/>
+          <text x="34" y="150" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#6fe09e">main agent</text>
+          <text x="34" y="178" font-family="IBM Plex Sans, sans-serif" font-size="18" font-weight="600" fill="#fff">orchestrator</text>
+          <text x="34" y="200" font-family="IBM Plex Sans, sans-serif" font-size="12" fill="#83868e">decompose · delegate</text>
+          <text x="34" y="217" font-family="IBM Plex Sans, sans-serif" font-size="12" fill="#83868e">review · integrate</text>
+
+          <!-- barrier -->
+          <line x1="350" y1="30" x2="350" y2="300" stroke="#9245db" stroke-width="1.4" stroke-dasharray="5 6"/>
+          <text x="350" y="326" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="#a86ae4">PreToolUse guard</text>
+
+          <!-- denied paths -->
+          <line x1="212" y1="96" x2="336" y2="96" stroke="#83868e" stroke-width="1.1" stroke-dasharray="4 4" marker-end="url(#ahd)"/>
+          <text x="214" y="86" font-family="IBM Plex Mono, monospace" font-size="11" fill="#83868e">edits</text>
+          <text x="356" y="100" font-family="IBM Plex Mono, monospace" font-size="13" fill="#e2708a">✗</text>
+
+          <line x1="212" y1="136" x2="336" y2="136" stroke="#83868e" stroke-width="1.1" stroke-dasharray="4 4" marker-end="url(#ahd)"/>
+          <text x="214" y="126" font-family="IBM Plex Mono, monospace" font-size="11" fill="#83868e">mutating bash</text>
+          <text x="356" y="140" font-family="IBM Plex Mono, monospace" font-size="13" fill="#e2708a">✗</text>
+
+          <!-- passing path -->
+          <line x1="212" y1="212" x2="404" y2="212" stroke="#6fe09e" stroke-width="1.3"/>
+          <text x="216" y="202" font-family="IBM Plex Mono, monospace" font-size="11" fill="#6fe09e">Task(…)</text>
+          <line x1="404" y1="112" x2="404" y2="240" stroke="#6fe09e" stroke-width="1.3"/>
+          <line x1="404" y1="112" x2="424" y2="112" stroke="#6fe09e" stroke-width="1.3" marker-end="url(#ah)"/>
+          <line x1="404" y1="240" x2="424" y2="240" stroke="#6fe09e" stroke-width="1.3" marker-end="url(#ah)"/>
+
+          <!-- workers -->
+          <g font-family="IBM Plex Mono, monospace">
+            <rect x="432" y="62" width="212" height="100" rx="12" fill="rgba(255,255,255,.035)" stroke="rgba(255,255,255,.14)"/>
+            <text x="452" y="94" font-size="12.5" fill="#fff">baton:scout</text>
+            <text x="452" y="115" font-size="11" fill="#a86ae4">haiku 4.5 · low</text>
+            <text x="452" y="137" font-size="11" fill="#83868e" font-family="IBM Plex Sans, sans-serif">mechanical recon</text>
+
+            <rect x="668" y="62" width="212" height="100" rx="12" fill="rgba(255,255,255,.035)" stroke="rgba(255,255,255,.14)"/>
+            <text x="688" y="94" font-size="12.5" fill="#fff">baton:coder-*</text>
+            <text x="688" y="115" font-size="11" fill="#a86ae4">opus 4.8 / sonnet 5</text>
+            <text x="688" y="137" font-size="11" fill="#83868e" font-family="IBM Plex Sans, sans-serif">implementation</text>
+
+            <rect x="432" y="190" width="212" height="100" rx="12" fill="rgba(255,255,255,.035)" stroke="rgba(255,255,255,.14)"/>
+            <text x="452" y="222" font-size="12.5" fill="#fff">baton:reviewer-xhigh</text>
+            <text x="452" y="243" font-size="11" fill="#a86ae4">opus 4.8 · xhigh</text>
+            <text x="452" y="265" font-size="11" fill="#83868e" font-family="IBM Plex Sans, sans-serif">adversarial review</text>
+
+            <rect x="668" y="190" width="212" height="100" rx="12" fill="rgba(255,255,255,.035)" stroke="rgba(255,255,255,.14)"/>
+            <text x="688" y="222" font-size="12.5" fill="#fff">baton:advisor</text>
+            <text x="688" y="243" font-size="11" fill="#a86ae4">fable 5 · high</text>
+            <text x="688" y="265" font-size="11" fill="#83868e" font-family="IBM Plex Sans, sans-serif">judgment at triggers</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption lang="en">The guard never inspects the parent model — both parent profiles are enforced identically.</figcaption>
+      <figcaption lang="ko">가드는 부모 모델을 아예 들여다보지 않는다 — 두 부모 프로파일 모두 동일하게 강제된다.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ============ 03 BENCH ============ -->
+<section class="sec rule" id="bench">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <div class="sec-num">03</div>
+      <div class="sec-title">
+        <h2>
+          <span lang="en">Workers pinned by model ID, not by alias.</span>
+          <span lang="ko">별칭이 아니라 모델 ID로 고정된 워커들.</span>
+        </h2>
+        <p lang="en">
+          Every worker names its model in frontmatter, so the tiers hold regardless of what the
+          <code>opus</code> alias resolves to next month. Effort is pinned too — recon runs low,
+          implementation runs medium to high, adversarial review runs xhigh.
+        </p>
+        <p lang="ko">
+          모든 워커가 frontmatter에 모델 ID를 직접 적는다. 다음 달에 <code>opus</code> 별칭이
+          무엇으로 해석되든 계층이 그대로 유지된다는 뜻이다. Effort도 고정된다 — 정찰은 low,
+          구현은 medium~high, 적대적 리뷰는 xhigh.
+        </p>
+      </div>
+    </div>
+
+    <div class="agents rv">
+      <div class="agent">
+        <h3>baton:coder-opus48</h3>
+        <div class="pills"><span class="pill model">claude-opus-4-8</span><span class="pill eff">effort high</span></div>
+        <p lang="en">Complex implementation, cross-file refactors, the debugging that doesn't yield on the first read.</p>
+        <p lang="ko">복잡한 구현, 파일을 넘나드는 리팩터, 한 번 읽어서는 풀리지 않는 디버깅.</p>
+      </div>
+      <div class="agent">
+        <h3>baton:coder-sonnet</h3>
+        <div class="pills"><span class="pill model">claude-sonnet-5</span><span class="pill eff">effort medium</span></div>
+        <p lang="en">Standard implementation with clear acceptance criteria, test writing, moderate fixes.</p>
+        <p lang="ko">수용 기준이 분명한 표준 구현, 테스트 작성, 중간 난도 수정.</p>
+      </div>
+      <div class="agent">
+        <h3>baton:scout</h3>
+        <div class="pills"><span class="pill model">haiku 4.5</span><span class="pill eff">effort low</span></div>
+        <p lang="en">Mechanical read-only recon — file discovery, pattern scanning, bulk evidence. The built-in Explore would inherit the expensive session model; this one doesn't.</p>
+        <p lang="ko">기계적인 읽기 전용 정찰 — 파일 탐색, 패턴 스캔, 대량 근거 수집. 내장 Explore는 비싼 세션 모델을 상속받지만 이쪽은 아니다.</p>
+      </div>
+      <div class="agent">
+        <h3>baton:scout-sonnet</h3>
+        <div class="pills"><span class="pill model">claude-sonnet-5</span><span class="pill eff">effort low</span></div>
+        <p lang="en">Recon that needs interpretation rather than scanning: ambiguous code, scattered evidence, hypothesis forming.</p>
+        <p lang="ko">스캔이 아니라 해석이 필요한 정찰: 모호한 코드, 흩어진 근거, 가설 수립.</p>
+      </div>
+      <div class="agent">
+        <h3>baton:reviewer-xhigh</h3>
+        <div class="pills"><span class="pill model">claude-opus-4-8</span><span class="pill eff">effort xhigh</span></div>
+        <p lang="en">Adversarial read-only review of high-consequence diffs. It produces findings, never commits — any resulting fix goes back through a coder as a normal stage.</p>
+        <p lang="ko">고위험 디프에 대한 적대적 읽기 전용 리뷰. 결과물은 지적 사항이지 커밋이 아니다 — 수정은 다시 코더에게 정상 스테이지로 내려간다.</p>
+      </div>
+      <div class="agent">
+        <h3>baton:advisor</h3>
+        <div class="pills"><span class="pill model">fable 5</span><span class="pill eff">effort high</span></div>
+        <p lang="en">A persistent, read-only senior advisor. Spawned once and continued via SendMessage so it accumulates context, rather than respawned per question.</p>
+        <p lang="ko">세션 내내 살아 있는 읽기 전용 시니어 어드바이저. 질문마다 새로 띄우지 않고 한 번 띄운 뒤 SendMessage로 이어 써서 맥락을 쌓는다.</p>
+      </div>
+    </div>
+
+    <div class="note rv" style="margin-top:34px">
+      <strong lang="en">Why the scout stays on Haiku</strong>
+      <strong lang="ko">스카우트가 Haiku에 남아 있는 이유</strong>
+      <span lang="en">Recon cost is dominated by input tokens, where effort settings buy you nothing.
+      Sonnet 5's tokenizer emits roughly 30% more tokens for the same text, which widens a 3× sticker
+      gap to about 4× in practice. Recon that genuinely needs interpretation exceeds Haiku's floor —
+      that's what <code>scout-sonnet</code> is for, and choosing between them is a real decision,
+      not a default.</span>
+      <span lang="ko">정찰 비용은 input 토큰이 지배하는데, effort 설정은 거기서 아무것도 줄여주지
+      못한다. Sonnet 5의 토크나이저는 같은 텍스트에 약 30% 더 많은 토큰을 쓰기 때문에 3배의 스티커
+      가격 차가 실질 4배 가까이 벌어진다. 진짜로 해석이 필요한 정찰은 Haiku의 floor를 넘는다 —
+      <code>scout-sonnet</code>은 그때 쓰는 것이고, 둘 사이의 선택은 기본값이 아니라 실제 판단이다.</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 04 PROFILES ============ -->
+<section class="sec rule" id="profiles">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <div class="sec-num">04</div>
+      <div class="sec-title">
+        <h2>
+          <span lang="en">The parent is a profile, not an assumption.</span>
+          <span lang="ko">부모 모델은 전제가 아니라 프로파일이다.</span>
+        </h2>
+        <p lang="en">
+          Same enforcement, two economics. What changes between profiles is only where escalation
+          triggers resolve — the guard is identical either way.
+        </p>
+        <p lang="ko">
+          강제는 같고 경제성만 다르다. 프로파일에 따라 달라지는 것은 에스컬레이션 트리거가 어디서
+          해소되는지뿐이며, 가드 자체는 양쪽 모두 동일하다.
+        </p>
+      </div>
+    </div>
+
+    <div class="grid g2 rv">
+      <div class="prof">
+        <div class="prof-top">
+          <span class="tag">parent=opus</span>
+          <h3><span lang="en">Cheap orchestration, imported judgment</span><span lang="ko">저비용 오케스트레이션, 수입한 판단력</span></h3>
+        </div>
+        <div class="prof-body">
+          <p lang="en">Opus 5 holds the baton. Fable 5 is the scarce resource, so it lands only where it changes the outcome: one persistent advisor, consulted at the mandatory triggers and nowhere else.</p>
+          <p lang="ko">Opus 5가 바톤을 든다. Fable 5는 희소 자원이므로 결과를 바꾸는 곳에만 투입된다 — 지속형 어드바이저 하나를, 필수 트리거에서만.</p>
+          <dl>
+            <dt lang="en">with advisor=none</dt><dt lang="ko">advisor=none일 때</dt>
+            <dd lang="en">Triggers still fire. Design and ambiguity go to you via AskUserQuestion; the final review routes to <code>reviewer-xhigh</code>, because a subtle correctness review isn't something a user can answer on the model's behalf.</dd>
+            <dd lang="ko">트리거는 그대로 발동한다. 설계·모호성은 AskUserQuestion으로 사용자에게 가고, 최종 리뷰는 <code>reviewer-xhigh</code>로 간다 — 미묘한 정합성 리뷰는 사용자가 대신 답해 줄 수 있는 종류가 아니기 때문이다.</dd>
+          </dl>
+        </div>
+      </div>
+
+      <div class="prof">
+        <div class="prof-top">
+          <span class="tag">parent=fable</span>
+          <h3><span lang="en">Top-tier judgment conducting directly</span><span lang="ko">최상위 판단력이 직접 지휘</span></h3>
+        </div>
+        <div class="prof-body">
+          <p lang="en">Fable 5 holds the baton and is itself the top judgment tier. Escalating a judgment call to another Fable would just outsource its own job, so design and ambiguity triggers get decided in place. Implementation still goes to the cheap pinned workers.</p>
+          <p lang="ko">Fable 5가 바톤을 들고, 스스로가 최상위 판단 티어다. 판단을 또 다른 Fable에게 넘기는 것은 자기 일을 외주 주는 것이므로 설계·모호성 트리거는 그 자리에서 결정한다. 구현은 여전히 저렴한 핀 고정 워커의 몫이다.</p>
+          <dl>
+            <dt lang="en">what still leaves the session</dt><dt lang="ko">그래도 밖으로 나가는 것</dt>
+            <dd lang="en">Only the final review — routed to <code>reviewer-xhigh</code> for independence rather than capability. Its value is a fresh context outside the history that produced the change.</dd>
+            <dd lang="ko">최종 리뷰뿐이다 — 능력이 아니라 독립성을 위해 <code>reviewer-xhigh</code>로 보낸다. 그 가치는 변경을 만들어 낸 히스토리 바깥의 새 맥락에 있다.</dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="margin:52px 0 4px;font-size:19px;letter-spacing:-.02em" class="rv">
+      <span lang="en">The four mandatory triggers</span><span lang="ko">네 가지 필수 트리거</span>
+    </h3>
+    <p style="margin:0 0 20px;color:var(--fg-3);font-size:14.5px" class="rv">
+      <span lang="en">Not optional, and identical under both profiles. A floor against under-consulting, and a ceiling against outsourcing the orchestrator's own job.</span>
+      <span lang="ko">선택이 아니고, 두 프로파일에서 동일하다. 자문을 너무 안 구하는 것에 대한 하한선이자, 오케스트레이터가 자기 일을 외주 주는 것에 대한 상한선.</span>
+    </p>
+    <ol class="trig rv">
+      <li>
+        <span lang="en"><b>Lasting design decisions.</b> Public interfaces, data models, irreversible migrations.</span>
+        <span lang="ko"><b>오래 남는 설계 결정.</b> 공개 인터페이스, 데이터 모델, 되돌릴 수 없는 마이그레이션.</span>
+      </li>
+      <li>
+        <span lang="en"><b>Twice-failed validation.</b> A stage that fails twice after a tier escalation always moves — it never retries in place.</span>
+        <span lang="ko"><b>두 번 실패한 검증.</b> 티어를 올린 뒤에도 두 번 실패한 스테이지는 반드시 이동한다 — 제자리 재시도는 없다.</span>
+      </li>
+      <li>
+        <span lang="en"><b>Conflicting evidence.</b> Requirements ambiguity that blocks decomposition, rather than merely complicating it.</span>
+        <span lang="ko"><b>충돌하는 근거.</b> 단순히 성가신 정도가 아니라 분해 자체를 막는 요구사항 모호성.</span>
+      </li>
+      <li>
+        <span lang="en"><b>Final review of a high-consequence change.</b> Security-sensitive, destructive, or hard to roll back.</span>
+        <span lang="ko"><b>고위험 변경의 최종 리뷰.</b> 보안에 민감하거나, 파괴적이거나, 되돌리기 어려운 변경.</span>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ 05 INSTALL ============ -->
+<section class="sec rule" id="install">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <div class="sec-num">05</div>
+      <div class="sec-title">
+        <h2>
+          <span lang="en">Three lines to hand over the baton.</span>
+          <span lang="ko">바톤을 넘기는 데 세 줄.</span>
+        </h2>
+        <p lang="en">
+          The plugin install is what makes the mode enforce anything — the hooks ship with the
+          plugin. A manual checkout has to wire <code>orchestrator-guard.sh</code> (PreToolUse) and
+          <code>orchestrator-mode.sh</code> (UserPromptSubmit) into settings itself.
+        </p>
+        <p lang="ko">
+          모드가 실제로 뭔가를 강제하려면 플러그인 설치가 필요하다 — 훅이 플러그인과 함께
+          배포되기 때문이다. 수동 체크아웃은 <code>orchestrator-guard.sh</code>(PreToolUse)와
+          <code>orchestrator-mode.sh</code>(UserPromptSubmit)를 settings에 직접 연결해야 한다.
+        </p>
+      </div>
+    </div>
+
+    <div class="steps rv">
+      <div class="step">
+        <div class="n">1</div>
+        <div class="body">
+          <div class="copyline">
+            <code>/plugin marketplace add KyongSik-Yoon/baton</code>
+            <button type="button" data-copy="/plugin marketplace add KyongSik-Yoon/baton">copy</button>
+          </div>
+          <div class="desc"><span lang="en">Add the marketplace.</span><span lang="ko">마켓플레이스를 추가한다.</span></div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="n">2</div>
+        <div class="body">
+          <div class="copyline">
+            <code>/plugin install baton@baton</code>
+            <button type="button" data-copy="/plugin install baton@baton">copy</button>
+          </div>
+          <div class="desc"><span lang="en">Install the plugin — this is what brings the hooks.</span><span lang="ko">플러그인을 설치한다 — 훅이 딸려 오는 단계다.</span></div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="n">3</div>
+        <div class="body">
+          <div class="copyline">
+            <code>/baton on</code>
+            <button type="button" data-copy="/baton on">copy</button>
+          </div>
+          <div class="desc"><span lang="en">The parent profile is auto-detected from the session's own model identity. Advisor defaults to <code>fable</code> under an Opus parent, <code>none</code> under a Fable one.</span><span lang="ko">부모 프로파일은 세션 자신의 모델 정체성에서 자동으로 잡힌다. advisor 기본값은 Opus 부모면 <code>fable</code>, Fable 부모면 <code>none</code>.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="margin:48px 0 0;font-size:19px;letter-spacing:-.02em" class="rv">
+      <span lang="en">Commands</span><span lang="ko">명령</span>
+    </h3>
+    <div class="cmds rv">
+      <div class="cmd"><code>/baton on advisor=none</code><span lang="en">Opus parent without Fable at all — e.g. once the quota is spent.</span><span lang="ko">Fable 없이 Opus 부모로 — 예컨대 쿼터를 다 썼을 때.</span></div>
+      <div class="cmd"><code>/baton on parent=fable</code><span lang="en">Pick the Fable-parent profile explicitly.</span><span lang="ko">Fable 부모 프로파일을 명시적으로 고른다.</span></div>
+      <div class="cmd"><code>/baton advisor none</code><span lang="en">Switch the advisor while staying on.</span><span lang="ko">모드를 유지한 채 advisor만 전환한다.</span></div>
+      <div class="cmd"><code>/baton parent fable</code><span lang="en">Switch the parent profile while staying on.</span><span lang="ko">모드를 유지한 채 부모 프로파일만 전환한다.</span></div>
+      <div class="cmd"><code>/baton status</code><span lang="en">Report the flag, the advisor and the parent setting.</span><span lang="ko">플래그·advisor·parent 설정을 보고한다.</span></div>
+      <div class="cmd"><code>/baton off</code><span lang="en">Remove the flag. Enforcement stops the same turn.</span><span lang="ko">플래그를 지운다. 강제는 그 턴부터 멈춘다.</span></div>
+    </div>
+
+    <div class="note rv" style="margin-top:40px">
+      <strong lang="en">Two things worth knowing</strong>
+      <strong lang="ko">알아 두면 좋은 두 가지</strong>
+      <span lang="en">The skill can't switch your session model — pin it per project with
+      <code>"model": "claude-opus-5"</code> (or <code>"claude-fable-5"</code>) in
+      <code>.claude/settings.json</code>, or use <code>/model</code>. And the Bash filter aims to
+      make bypasses hard, not impossible: the enforcement target is model drift, not an adversary.</span>
+      <span lang="ko">스킬이 세션 모델을 바꿔 줄 수는 없다 — <code>.claude/settings.json</code>에
+      <code>"model": "claude-opus-5"</code>(또는 <code>"claude-fable-5"</code>)를 넣거나
+      <code>/model</code>로 직접 고정할 것. 그리고 Bash 필터의 목표는 우회를 어렵게 만드는 것이지
+      불가능하게 만드는 것이 아니다: 강제 대상은 모델 드리프트지 공격자가 아니다.</span>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <div>
+      <div class="foot-links">
+        <a href="https://github.com/KyongSik-Yoon/baton" rel="noopener">GitHub</a>
+        <a href="https://github.com/KyongSik-Yoon/baton/blob/main/README.md" rel="noopener">README</a>
+        <a href="https://github.com/KyongSik-Yoon/baton/blob/main/README.ko.md" rel="noopener">README (한국어)</a>
+        <a href="https://github.com/KyongSik-Yoon/fable-router" rel="noopener">fable-router</a>
+        <a href="https://github.com/KyongSik-Yoon/baton/blob/main/LICENSE" rel="noopener">MIT</a>
+      </div>
+      <p class="foot-note" style="margin:16px 0 0">
+        <span lang="en">Formerly published as <code>opus-5-router</code>. The old flag file is no longer read; <code>/baton on</code> cleans it up.</span>
+        <span lang="ko">이전 이름은 <code>opus-5-router</code>. 옛 플래그 파일은 더 이상 읽지 않으며 <code>/baton on</code>이 정리해 준다.</span>
+      </p>
+    </div>
+    <p class="foot-note" style="margin:0;text-align:right">
+      <span lang="en">Built by KyongSik Yoon · MIT licensed</span>
+      <span lang="ko">KyongSik Yoon 제작 · MIT 라이선스</span>
+    </p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var buttons = Array.prototype.slice.call(document.querySelectorAll('[data-setlang]'));
+
+  function apply(lang) {
+    lang = (lang === 'ko') ? 'ko' : 'en';
+    root.setAttribute('data-lang', lang);
+    root.setAttribute('lang', lang);
+    buttons.forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.dataset.setlang === lang));
+    });
+    try { localStorage.setItem('baton-lang', lang); } catch (e) {}
+  }
+
+  // Precedence: explicit URL param/hash > remembered choice > English.
+  var url = new URL(window.location.href);
+  var fromUrl = url.searchParams.get('lang') || (location.hash === '#ko' ? 'ko' : '');
+  var stored = '';
+  try { stored = localStorage.getItem('baton-lang') || ''; } catch (e) {}
+  apply(fromUrl || stored || 'en');
+
+  buttons.forEach(function (b) {
+    b.addEventListener('click', function () { apply(b.dataset.setlang); });
+  });
+
+  // Copy buttons.
+  document.querySelectorAll('[data-copy]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var text = btn.getAttribute('data-copy');
+      var done = function () {
+        var prev = btn.textContent;
+        btn.textContent = 'copied';
+        btn.classList.add('done');
+        setTimeout(function () { btn.textContent = prev; btn.classList.remove('done'); }, 1400);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () {});
+      } else {
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.top = '-1000px';
+        document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); done(); } catch (e) {}
+        document.body.removeChild(ta);
+      }
+    });
+  });
+
+  // Reveal on scroll.
+  var targets = document.querySelectorAll('.rv');
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce || !('IntersectionObserver' in window)) {
+    targets.forEach(function (el) { el.classList.add('in'); });
+  } else {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+    targets.forEach(function (el) { io.observe(el); });
+  }
+})();
+</script>
+</body>
+</html>
