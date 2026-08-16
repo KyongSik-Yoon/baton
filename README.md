@@ -57,3 +57,7 @@ The plugin install is required for the mode to actually enforce anything — the
 - Don't run it together with the fable-router plugin's auto mode — even under `parent=fable` they are two competing routing schemes over the same session. `/baton on` warns if both flags are set.
 - The Bash filter aims to make bypasses hard, not impossible: the enforcement target is model drift, not an adversary.
 - Why the scout stays on Haiku: recon cost is dominated by input tokens, where effort settings don't help and Sonnet 5's new tokenizer (~30% more tokens for the same text) widens the sticker 3x price gap to ~4x in practice (~2.6x under the intro pricing that ends 2026-08-31). Recon that needs interpretation rather than scanning exceeds Haiku's floor — route it to `baton:scout-sonnet`.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
