@@ -1,6 +1,6 @@
 # baton
 
-[README.ko.md](README.ko.md)
+[README.ko.md](README.ko.md) · [Project page](https://kyongsik-yoon.github.io/baton/)
 
 Run your **session as a pure orchestrator** — the one holding the baton makes no sound: it thinks, decomposes, delegates, and reviews, but never edits. The parent model is a profile, not an assumption: with an **Opus 5 parent** you get orchestration on the cheap with Fable 5 imported only for judgment; with a **Fable 5 parent** you get top-tier judgment orchestrating directly while implementation still goes to cheap pinned workers. The enforcement layer never inspects the parent model, so both profiles are enforced identically.
 
