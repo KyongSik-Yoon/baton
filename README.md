@@ -10,7 +10,7 @@ Sibling project: the [fable-router](https://github.com/KyongSik-Yoon/fable-route
 
 ## How it works
 
-Enforcement is mechanical, not prompt-based. While the flag file `~/.claude/baton` exists, the plugin's `PreToolUse` hook (`hooks/orchestrator-guard.sh`) denies the **main agent's** `Write`/`Edit`/`NotebookEdit` and any Bash beyond read-only inspection and test/lint commands (`hooks/orchestrator-bash-filter.py`, default-deny). Subagent calls pass untouched — their hook input carries `agent_id`, the main agent's never does. Deny reasons steer the model toward delegation. A `UserPromptSubmit` hook (`hooks/orchestrator-mode.sh`) injects the orchestrator posture each turn.
+Enforcement is mechanical, not prompt-based. While the flag file `~/.claude/baton` exists, the plugin's `PreToolUse` hook (`hooks/orchestrator-guard.sh`) denies the **main agent's** `Write`/`Edit`/`NotebookEdit` and any Bash beyond read-only inspection and test/lint commands (`hooks/orchestrator-bash-filter.py`, default-deny). Subagent calls pass untouched — their hook input carries `agent_id`, the main agent's never does. Deny reasons steer the model toward delegation. One exception: writes to the plan-mode plan file under `.claude/plans/` are allowed for the main agent, since Claude Code's plan mode restricts that write to the main agent and subagents inherit plan mode too. A `UserPromptSubmit` hook (`hooks/orchestrator-mode.sh`) injects the orchestrator posture each turn.
 
 Implementation goes to workers pinned by frontmatter model ID, so the tiers hold regardless of what the `opus` alias resolves to:
 
