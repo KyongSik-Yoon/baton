@@ -28,11 +28,16 @@ else
 fi
 [ -n "$STYLES_DIR" ] || exit 0
 
-# Try the model id as-is first, then with a trailing -YYYYMMDD date suffix
-# stripped (e.g. claude-opus-5-20260501 -> claude-opus-5).
-stripped=$(printf '%s' "$model" | sed 's/-[0-9]\{8\}$//')
+# Try the model id as-is first, then progressively normalized variants: a
+# trailing bracketed suffix stripped (e.g. claude-opus-5[1m] -> claude-opus-5),
+# a trailing -YYYYMMDD date suffix stripped (e.g. claude-opus-5-20260501 ->
+# claude-opus-5), and both stripped together, bracket first then date (e.g.
+# claude-opus-5-20260501[1m] -> claude-opus-5).
+nobracket=$(printf '%s' "$model" | sed 's/\[[^][]*\]$//')
+nodate=$(printf '%s' "$model" | sed 's/-[0-9]\{8\}$//')
+stripped=$(printf '%s' "$nobracket" | sed 's/-[0-9]\{8\}$//')
 FILE=""
-for id in "$model" "$stripped"; do
+for id in "$model" "$nobracket" "$nodate" "$stripped"; do
   if [ -f "${STYLES_DIR}/${id}.md" ]; then
     FILE="${STYLES_DIR}/${id}.md"
     break
