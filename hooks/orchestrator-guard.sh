@@ -20,7 +20,14 @@ tool=$(printf '%s' "$input" | sed -n 's/.*"tool_name" *: *"\([^"]*\)".*/\1/p')
 
 case "$tool" in
   Write|Edit|NotebookEdit)
-    deny "orchestrator mode: direct edits are disabled for the main agent. Delegate this change to a worker subagent (coder-sonnet for standard work, coder-opus48 for complex work)."
+    # Exception: Claude Code plan mode only lets the MAIN agent write the plan
+    # file, and subagents inherit plan mode so they can't write it either.
+    # The plan file is the orchestrator's own artifact, so let it through.
+    file_path=$(printf '%s' "$input" | sed -n 's/.*"file_path" *: *"\([^"]*\)".*/\1/p')
+    case "$file_path" in
+      */.claude/plans/*|.claude/plans/*) exit 0 ;;
+    esac
+    deny "orchestrator mode: direct edits are disabled for the main agent. Delegate this change to a worker subagent (coder-sonnet for standard work, coder-opus48 for complex work). Exception: plan files under .claude/plans/ may be written directly, since plan mode restricts them to the main agent."
     ;;
   Bash)
     ;;

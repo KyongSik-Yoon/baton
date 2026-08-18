@@ -10,7 +10,7 @@
 
 ## 동작 방식
 
-강제는 프롬프트가 아니라 메커니즘이다. 플래그 파일 `~/.claude/baton`가 존재하는 동안 플러그인의 `PreToolUse` 훅(`hooks/orchestrator-guard.sh`)이 **메인 에이전트의** `Write`/`Edit`/`NotebookEdit`와, 읽기 전용 조회·테스트/린트 명령을 벗어나는 모든 Bash를 거부한다(`hooks/orchestrator-bash-filter.py`, 기본 거부). 서브에이전트 호출은 그대로 통과한다 — 훅 입력에 `agent_id`가 실려 오는 쪽이 서브에이전트고, 메인 에이전트에는 절대 없다. 거부 사유 문구가 모델을 위임 쪽으로 유도한다. `UserPromptSubmit` 훅(`hooks/orchestrator-mode.sh`)은 매 턴 오케스트레이터 태세를 주입한다.
+강제는 프롬프트가 아니라 메커니즘이다. 플래그 파일 `~/.claude/baton`가 존재하는 동안 플러그인의 `PreToolUse` 훅(`hooks/orchestrator-guard.sh`)이 **메인 에이전트의** `Write`/`Edit`/`NotebookEdit`와, 읽기 전용 조회·테스트/린트 명령을 벗어나는 모든 Bash를 거부한다(`hooks/orchestrator-bash-filter.py`, 기본 거부). 서브에이전트 호출은 그대로 통과한다 — 훅 입력에 `agent_id`가 실려 오는 쪽이 서브에이전트고, 메인 에이전트에는 절대 없다. 거부 사유 문구가 모델을 위임 쪽으로 유도한다. 예외가 하나 있다: `.claude/plans/` 아래 플랜 모드 플랜 파일에 대한 쓰기는 메인 에이전트에게 허용된다 — Claude Code의 플랜 모드가 이 쓰기를 메인 에이전트에게만 허용하고, 서브에이전트도 플랜 모드를 그대로 물려받기 때문이다. `UserPromptSubmit` 훅(`hooks/orchestrator-mode.sh`)은 매 턴 오케스트레이터 태세를 주입한다.
 
 구현은 frontmatter에 모델 ID를 핀 고정한 워커가 맡는다 — `opus` 별칭이 무엇으로 해석되든 계층이 유지된다:
 

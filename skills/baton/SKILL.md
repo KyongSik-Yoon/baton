@@ -6,7 +6,7 @@ description: Run the session's main model (Opus 5 or Fable 5) as a pure orchestr
 
 # Orchestrator Mode
 
-The session's main model is a pure orchestrator — it decomposes, delegates, reviews, and integrates, but never edits. Enforcement is mechanical, not aspirational: while the mode flag exists, the plugin's `PreToolUse` hook denies the main agent's `Write`/`Edit`/`NotebookEdit` and any Bash beyond read-only inspection, test/lint/typecheck commands, and the flag-file management below. Subagent calls pass the guard untouched (their hook input carries `agent_id`). The guard never inspects the parent model, so enforcement is identical under either parent profile.
+The session's main model is a pure orchestrator — it decomposes, delegates, reviews, and integrates, but never edits. Enforcement is mechanical, not aspirational: while the mode flag exists, the plugin's `PreToolUse` hook denies the main agent's `Write`/`Edit`/`NotebookEdit` and any Bash beyond read-only inspection, test/lint/typecheck commands, and the flag-file management below. Subagent calls pass the guard untouched (their hook input carries `agent_id`). The guard never inspects the parent model, so enforcement is identical under either parent profile. One exception: the plan-mode plan file under `.claude/plans/` is written by the orchestrator directly, since Claude Code's plan mode restricts that write to the main agent and workers inherit plan mode too — everything else is still delegated.
 
 ## Parent model
 
