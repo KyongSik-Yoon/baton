@@ -38,9 +38,12 @@ On `/baton on` without an explicit `parent=`, the skill defaults the profile fro
 /baton on parent=fable  # Fable-parent profile explicitly
 /baton advisor none     # switch advisor while staying on
 /baton parent fable     # switch parent profile while staying on
+/baton style on         # inject the per-model communication style (opt-in)
 /baton status
 /baton off
 ```
+
+`style on` opts into a per-model communication-style prompt: a `SessionStart` hook injects `styles/<model-id>.md` into the session (and a `SubagentStart` hook does the same for subagents whose input carries a model), but only for a model that ships a matching style file. The plugin ships `styles/claude-opus-5.md` (a clear/concise/actionable style, adapted from IndyDevDan's "Fixing Opus 5" repo, MIT); to style another model, drop a `styles/<model-id>.md` file. It fires on every session start (startup, resume, clear, compact) but does not follow a mid-session `/model` switch.
 
 ## Install
 

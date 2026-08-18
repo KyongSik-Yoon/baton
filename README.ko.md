@@ -38,9 +38,12 @@
 /baton on parent=fable  # Fable 부모 프로파일 명시
 /baton advisor none     # 모드 유지한 채 advisor만 전환
 /baton parent fable     # 모드 유지한 채 부모 프로파일만 전환
+/baton style on         # 모델별 커뮤니케이션 스타일 주입(opt-in)
 /baton status
 /baton off
 ```
+
+`style on`은 모델별 커뮤니케이션 스타일 프롬프트를 opt-in한다: `SessionStart` 훅이 `styles/<model-id>.md`를 세션에 주입하고(서브에이전트도 입력에 모델이 실려 오면 `SubagentStart` 훅이 동일하게 처리), 매칭되는 스타일 파일을 가진 모델에만 발동한다. 플러그인은 `styles/claude-opus-5.md`를 함께 배포한다(clear/concise/actionable 스타일, IndyDevDan의 "Fixing Opus 5" 저장소에서 가져와 다듬음, MIT). 다른 모델에 스타일을 주려면 `styles/<model-id>.md` 파일을 추가하면 된다. 모든 세션 시작(startup·resume·clear·compact)에 발동하지만, 세션 도중의 `/model` 전환은 따라가지 않는다.
 
 ## 설치
 

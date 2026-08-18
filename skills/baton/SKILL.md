@@ -1,6 +1,6 @@
 ---
 name: baton
-argument-hint: "[on [advisor=fable|none] [parent=opus|fable] | off | advisor fable|none | parent opus|fable | status]"
+argument-hint: "[on [advisor=fable|none] [parent=opus|fable] [style=on|off] | off | advisor fable|none | parent opus|fable | style on|off | status]"
 description: Run the session's main model (Opus 5 or Fable 5) as a pure orchestrator that thinks, decomposes, delegates, and reviews but never edits directly - a PreToolUse hook blocks its Write/Edit/NotebookEdit and mutating Bash while the mode flag exists. Implementation goes to pinned workers (coder-opus48, coder-sonnet, scout on Haiku). Under an Opus parent, Fable 5 is consulted as a persistent advisor at mandatory escalation triggers (or disabled with advisor=none once Fable quota is spent); under a Fable parent the orchestrator is itself the top judgment tier and the advisor is an opt-in second opinion. Use only when the user explicitly invokes /baton, toggles the mode, or when the orchestrator-mode hook injects its directive. Do not invoke implicitly for ordinary tasks.
 ---
 
@@ -21,13 +21,18 @@ The skill cannot switch the session model — pin it per project in `.claude/set
 
 State is the flag file `~/.claude/baton`. Handle arguments before anything else; each command confirms the new state in one line and stops.
 
-- **`on [advisor=fable|none] [parent=opus|fable]`** — write the flag: `printf 'advisor=<a>\nparent=<p>\n' > ~/.claude/baton` with the literal values filled in. Default `parent` from your own model identity as above. Default `advisor`: `fable` when `parent=opus`, `none` when `parent=fable` (a same-model advisor is opt-in, not default). If `~/.claude/fable-router-auto` exists (the separate fable-router plugin's auto mode), warn that the two modes conflict (fable-router's own routing vs this plugin's orchestration) and ask which to keep before proceeding. If the pre-rename flag `~/.claude/opus5-router` exists, remove it with `rm -f ~/.claude/opus5-router` — it belongs to this plugin's old name and is no longer read.
+- **`on [advisor=fable|none] [parent=opus|fable] [style=on|off]`** — write the flag: `printf 'advisor=<a>\nparent=<p>\nstyle=<s>\n' > ~/.claude/baton` with the literal values filled in. Default `parent` from your own model identity as above. Default `advisor`: `fable` when `parent=opus`, `none` when `parent=fable` (a same-model advisor is opt-in, not default). Default `style`: `off`. If `~/.claude/fable-router-auto` exists (the separate fable-router plugin's auto mode), warn that the two modes conflict (fable-router's own routing vs this plugin's orchestration) and ask which to keep before proceeding. If the pre-rename flag `~/.claude/opus5-router` exists, remove it with `rm -f ~/.claude/opus5-router` — it belongs to this plugin's old name and is no longer read.
 - **`off`** — `rm -f ~/.claude/baton`.
-- **`advisor fable|none`** — rewrite the flag with the new advisor value, keeping the current `parent`; mode stays on.
-- **`parent opus|fable`** — rewrite the flag with the new parent value, keeping the current `advisor`; mode stays on.
-- **`status`** — report flag existence, advisor, and parent settings (`test -f` / `cat`; a flag without a `parent=` line means `parent=opus`).
+- **`advisor fable|none`** — rewrite the flag with the new advisor value, keeping the current `parent` and `style`; mode stays on.
+- **`parent opus|fable`** — rewrite the flag with the new parent value, keeping the current `advisor` and `style`; mode stays on.
+- **`style on|off`** — rewrite the flag with the new style value, keeping the current `advisor` and `parent`; mode stays on.
+- **`status`** — report flag existence, advisor, parent, and style settings (`test -f` / `cat`; a flag without a `parent=` line means `parent=opus`, and one without a `style=` line means `style=off`).
 
-These exact command forms are allowlisted in the guard; do not improvise variants. Rewrites always emit both lines via the same `printf 'advisor=<a>\nparent=<p>\n' > ~/.claude/baton` form.
+These exact command forms are allowlisted in the guard; do not improvise variants. Every rewrite emits three lines via the same `printf 'advisor=<a>\nparent=<p>\nstyle=<s>\n' > ~/.claude/baton` form (a flag written without a `style=` line, or with `style=off`, means style injection is off). The `style=` line, when present, must follow the `parent=` line — that is the only ordering the guard allowlists.
+
+## Style injection
+
+When the flag file carries `style=on`, a `SessionStart` hook (`hooks/style-inject.sh`) injects a per-model communication-style prompt into the session, and a `SubagentStart` hook does the same for subagents whose hook input carries a model. Injection is model-scoped: it fires only for a model that ships a matching `styles/<model-id>.md` file, so an unstyled model sees nothing. The hook resolves the id from the hook input's `model` field, trying it as-is and then with a trailing `-YYYYMMDD` date suffix stripped. It applies to the main session on every `SessionStart` source (startup, resume, clear, compact) but does **not** follow a mid-session `/model` switch, since no hook fires on that. This plugin ships `styles/claude-opus-5.md` (a clear/concise/actionable communication style, adapted from IndyDevDan's "Fixing Opus 5" repo, MIT). To style another model, drop a `styles/<model-id>.md` file using the resolved model id — no code change needed.
 
 ## Orchestration Loop
 

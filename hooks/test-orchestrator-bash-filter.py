@@ -287,6 +287,18 @@ CASES = [
     (True, "rm -f ~/.claude/baton"),
     (True, "rm -f ~/.claude/opus5-router"),
 
+    # --- flag-file management: optional style= third line (allow) ---
+    (True, "printf 'advisor=fable\\nparent=opus\\nstyle=on\\n' > ~/.claude/baton"),
+    (True, "printf 'advisor=fable\\nparent=opus\\nstyle=off\\n' > ~/.claude/baton"),
+    (True, "printf 'advisor=none\\nparent=fable\\nstyle=on\\n' > ~/.claude/baton"),
+
+    # --- flag-file management: style= only after parent, closed enum (deny) ---
+    (False, "printf 'advisor=fable\\nparent=opus\\nstyle=yes\\n' > ~/.claude/baton"),
+    (False, "printf 'advisor=fable\\nstyle=on\\n' > ~/.claude/baton"),
+    (False, "printf 'advisor=fable\\nparent=opus\\nstyle=on\\n' >> ~/.claude/baton"),
+    (False, "printf 'advisor=fable\\nparent=opus\\nstyle=on\\n' > ~/.claude/baton2"),
+    (False, "printf 'advisor=fable\\nparent=opus\\nstyle=on\\n' > /etc/passwd"),
+
     # --- legacy flag path: removable only, never writable ---
     (False, "printf 'advisor=fable\\n' > ~/.claude/opus5-router"),
     (False, "printf 'advisor=fable\\nparent=fable\\n' > ~/.claude/opus5-router"),
