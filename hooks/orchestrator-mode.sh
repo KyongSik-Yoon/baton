@@ -30,7 +30,7 @@ cat <<JSON
 {
   "hookSpecificOutput": {
     "hookEventName": "UserPromptSubmit",
-    "additionalContext": "baton mode is ON — you are the orchestrator: a PreToolUse hook blocks your direct file edits and mutating Bash. Decompose the task, delegate implementation to baton:coder-opus48 (complex) or baton:coder-sonnet (standard), use baton:scout for mechanical read-only recon (baton:scout-sonnet when the recon needs interpretation), and review the resulting diffs yourself. ${ADV} Follow the baton skill's rules. If this turn is trivial or conversational, just answer directly without mentioning the orchestrator."
+    "additionalContext": "baton mode is ON — you are the orchestrator: a PreToolUse hook blocks your direct file edits and mutating Bash, and caps how much you read into your own context. Decompose the task, delegate implementation to baton:coder-opus48 (complex) or baton:coder-sonnet (standard), send bulk reading to baton:scout for mechanical recon (baton:scout-sonnet when the recon needs interpretation) and keep its summary rather than the files, and review the resulting diffs yourself. ${ADV} Follow the baton skill's rules. If this turn is trivial or conversational, just answer directly without mentioning the orchestrator."
   },
   "suppressOutput": true
 }

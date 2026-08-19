@@ -12,6 +12,8 @@
 
 강제는 프롬프트가 아니라 메커니즘이다. 플래그 파일 `~/.claude/baton`가 존재하는 동안 플러그인의 `PreToolUse` 훅(`hooks/orchestrator-guard.sh`)이 **메인 에이전트의** `Write`/`Edit`/`NotebookEdit`와, 읽기 전용 조회·테스트/린트 명령을 벗어나는 모든 Bash를 거부한다(`hooks/orchestrator-bash-filter.py`, 기본 거부). 서브에이전트 호출은 그대로 통과한다 — 훅 입력에 `agent_id`가 실려 오는 쪽이 서브에이전트고, 메인 에이전트에는 절대 없다. 거부 사유 문구가 모델을 위임 쪽으로 유도한다. 예외가 하나 있다: `.claude/plans/` 아래 플랜 모드 플랜 파일에 대한 쓰기는 메인 에이전트에게 허용된다 — Claude Code의 플랜 모드가 이 쓰기를 메인 에이전트에게만 허용하고, 서브에이전트도 플랜 모드를 그대로 물려받기 때문이다. `UserPromptSubmit` 훅(`hooks/orchestrator-mode.sh`)은 매 턴 오케스트레이터 태세를 주입한다.
 
+쓰기를 막는 것으로 아끼는 건 출력 토큰뿐이다. 오케스트레이터의 비용은 입력이 지배한다 — 자기가 직접 읽어 들인 파일은 이후 모든 턴에서 계속 값을 치르는 컨텍스트가 되지만, 스카우트에게 맡기면 한 번만 값을 치르고 요약만 돌아온다. 그래서 같은 `PreToolUse` 훅이 메인 에이전트의 **읽기**에도 상한을 건다: 64 KB를 넘는 파일의 통째 읽기, 또는 800줄을 넘게 요청하는 경계 읽기는 `Read`(`hooks/orchestrator-read-cap.py`)에서도 Bash(`cat`, `nl`, 범위 없는 `sed`, 과한 `head -n`)에서도 거부된다. 의도적으로 뚫려 있는 곳: 출력이 파이프로 넘어가는 리더(`cat big | head -20`)는 통과한다 — 분량을 정하는 건 뒤쪽 단계다. 미리 크기를 알 수 없는 것(글롭, 없는 파일)도 추측하지 않고 통과시킨다. grep류 출력은 아예 상한을 걸지 않는다 — 패턴이 몇 줄을 잡을지는 `PreToolUse` 훅이 알 수 없다. 두 상한은 환경 변수 하나로 조정된다: `BATON_READ_MAX_BYTES`, `BATON_READ_MAX_LINES`.
+
 구현은 frontmatter에 모델 ID를 핀 고정한 워커가 맡는다 — `opus` 별칭이 무엇으로 해석되든 계층이 유지된다:
 
 | 에이전트 | 모델 | Effort | 역할 |
@@ -52,7 +54,7 @@
 /plugin install baton@baton
 ```
 
-모드가 실제로 뭔가를 강제하려면 플러그인 설치가 필요하다 — 훅이 플러그인과 함께 배포되기 때문. 수동 체크아웃은 `orchestrator-guard.sh`(PreToolUse, matcher `Write|Edit|NotebookEdit|Bash`)와 `orchestrator-mode.sh`(UserPromptSubmit)를 settings에 직접 연결해야 한다.
+모드가 실제로 뭔가를 강제하려면 플러그인 설치가 필요하다 — 훅이 플러그인과 함께 배포되기 때문. 수동 체크아웃은 `orchestrator-guard.sh`(PreToolUse, matcher `Write|Edit|NotebookEdit|Bash|Read`)와 `orchestrator-mode.sh`(UserPromptSubmit)를 settings에 직접 연결해야 한다.
 
 ## 참고
 

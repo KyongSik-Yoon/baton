@@ -1,5 +1,5 @@
 {
-  "description": "baton mode: inject the orchestrator posture each turn and block main-agent mutations at the tool layer while the flag file exists.",
+  "description": "baton mode: inject the orchestrator posture each turn, block main-agent mutations at the tool layer, and cap what the main agent reads into its own context, while the flag file exists.",
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -14,7 +14,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Write|Edit|NotebookEdit|Bash",
+        "matcher": "Write|Edit|NotebookEdit|Bash|Read",
         "hooks": [
           {
             "type": "command",
