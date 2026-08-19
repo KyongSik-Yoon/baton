@@ -12,6 +12,8 @@ Sibling project: the [fable-router](https://github.com/KyongSik-Yoon/fable-route
 
 Enforcement is mechanical, not prompt-based. While the flag file `~/.claude/baton` exists, the plugin's `PreToolUse` hook (`hooks/orchestrator-guard.sh`) denies the **main agent's** `Write`/`Edit`/`NotebookEdit` and any Bash beyond read-only inspection and test/lint commands (`hooks/orchestrator-bash-filter.py`, default-deny). Subagent calls pass untouched — their hook input carries `agent_id`, the main agent's never does. Deny reasons steer the model toward delegation. One exception: writes to the plan-mode plan file under `.claude/plans/` are allowed for the main agent, since Claude Code's plan mode restricts that write to the main agent and subagents inherit plan mode too. A `UserPromptSubmit` hook (`hooks/orchestrator-mode.sh`) injects the orchestrator posture each turn.
 
+Blocking writes only saves output tokens, so the same `PreToolUse` hook also caps what the main agent **reads** — the input side is where an orchestrator's bill actually is, since a file it pulls in itself stays in context for every later turn, while a scout pays for it once and hands back a summary. A whole-file read past 64 KB, or a bounded read asking for more than 800 lines, is denied to the main agent through `Read` (`hooks/orchestrator-read-cap.py`) and through Bash alike — `cat`, `nl`, an unbounded `sed`, an oversized `head -n`. Deliberate holes: a reader piped into a bounding stage (`cat big | head -20`) passes, because the downstream stage is what decides the volume, and anything whose size is unknowable ahead of time (a glob, an absent file) passes rather than being guessed at. Grep-shaped output is not capped at all — a `PreToolUse` hook cannot know how many lines a pattern will match. Both caps are one env var away: `BATON_READ_MAX_BYTES`, `BATON_READ_MAX_LINES`.
+
 Implementation goes to workers pinned by frontmatter model ID, so the tiers hold regardless of what the `opus` alias resolves to:
 
 | Agent | Model | Effort | Role |
@@ -52,7 +54,7 @@ On `/baton on` without an explicit `parent=`, the skill defaults the profile fro
 /plugin install baton@baton
 ```
 
-The plugin install is required for the mode to actually enforce anything — the hooks ship with the plugin. A manual checkout must wire `orchestrator-guard.sh` (PreToolUse, matcher `Write|Edit|NotebookEdit|Bash`) and `orchestrator-mode.sh` (UserPromptSubmit) into settings itself.
+The plugin install is required for the mode to actually enforce anything — the hooks ship with the plugin. A manual checkout must wire `orchestrator-guard.sh` (PreToolUse, matcher `Write|Edit|NotebookEdit|Bash|Read`) and `orchestrator-mode.sh` (UserPromptSubmit) into settings itself.
 
 ## Notes
 

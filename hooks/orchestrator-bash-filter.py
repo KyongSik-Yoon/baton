@@ -6,11 +6,18 @@ already checked the flag file and filtered out subagent calls). stdout: empty
 to allow, or a deny decision. Default-deny: only read-only inspection and
 test/lint/typecheck commands pass. This aims to make bypasses hard, not
 impossible — the enforcement target is model drift, not an adversary.
+
+A command that clears that bar then faces a second, narrower question: would it
+pour a large file into the orchestrator's context? See baton_read_cap.
 """
 import json
 import re
 import shlex
 import sys
+
+from baton_read_cap import (
+    BYTES_MSG, FILE_MSG, LINES_MSG, MAX_READ_BYTES, MAX_READ_LINES, oversize,
+)
 
 DELEGATE = " Delegate it to a worker subagent (coder-sonnet / coder-opus48)."
 
@@ -741,13 +748,15 @@ def _sub_ok(inner, depth):
     return depth < 2 and command_ok(inner, depth + 1)
 
 
-def scan(text, depth):
+def scan_pairs(text, depth):
     """Single left-to-right pass tracking quote state, so separators and
     dangerous metacharacters are only acted on where the shell would honour
-    them. Returns the command split into segments on unquoted separators;
-    raises Dangerous for redirects / process substitution, and for command
-    substitutions whose inner command fails validation. Validated command
-    substitutions are replaced by a harmless placeholder word."""
+    them. Returns (segment, following separator) pairs split on unquoted
+    separators — the separator matters to the read cap, which exempts a reader
+    whose output is piped onward. Raises Dangerous for redirects / process
+    substitution, and for command substitutions whose inner command fails
+    validation. Validated command substitutions are replaced by a harmless
+    placeholder word."""
     segments, cur = [], []
     quote = None  # None, "'" or '"'
     i, n = 0, len(text)
@@ -794,13 +803,17 @@ def scan(text, depth):
                     raise Dangerous
                 cur.append("_SUBST_"); i = end + 1
             elif text[i:i + 2] in ("||", "&&"):
-                segments.append("".join(cur)); cur = []; i += 2
+                segments.append(("".join(cur), text[i:i + 2])); cur = []; i += 2
             elif c in ";|\n":  # bare & stays a normal char, matching prior behavior
-                segments.append("".join(cur)); cur = []; i += 1
+                segments.append(("".join(cur), c)); cur = []; i += 1
             else:
                 cur.append(c); i += 1
-    segments.append("".join(cur))
+    segments.append(("".join(cur), ""))
     return segments
+
+
+def scan(text, depth):
+    return [seg for seg, _ in scan_pairs(text, depth)]
 
 
 def command_ok(text, depth):
@@ -829,6 +842,177 @@ def explain(cmd):
     return GENERIC_MSG.format("?")
 
 
+# --- read cap ---------------------------------------------------------------
+# Everything above decides whether a command mutates state. What follows decides
+# whether an already-read-only command would dump a large file into the
+# orchestrator's own context, which is the other half of the bill.
+
+# Commands that copy their whole input file(s) to stdout. sed belongs here too
+# but gets its own handler, since `-n '<range>p'` makes it bounded.
+FULL_READERS = {"cat", "nl", "tac", "rev", "strings", "base64", "xxd"}
+_COUNT_RE = re.compile(r"^[+-]?(\d+)([kKmMgG]?)[bB]?$")
+_SED_RANGE_RE = re.compile(r"^(\d+)(?:,(\d+))?p$")
+_SED_QUIT_RE = re.compile(r"^\d+q$")
+
+
+def _parse_count(text):
+    """A head/tail count with its optional size suffix, or None if unparseable
+    (in which case the cap stays out of the way rather than guessing)."""
+    m = _COUNT_RE.match(text.strip())
+    if not m:
+        return None
+    mult = {"": 1, "k": 1024, "m": 1024 ** 2, "g": 1024 ** 3}[m.group(2).lower()]
+    return int(m.group(1)) * mult
+
+
+def _positionals(args):
+    """Non-flag arguments — the file operands for the FULL_READERS."""
+    out, i = [], 0
+    while i < len(args):
+        a = args[i]
+        if a == "--":
+            out.extend(args[i + 1:])
+            break
+        if a.startswith("-") and a != "-":
+            i += 1
+            continue
+        out.append(a)
+        i += 1
+    return out
+
+
+def _head_tail_reason(args):
+    """head/tail bound their own output, so they are never size-checked; only a
+    count wider than the cap is refused. Default (10 lines) has no count."""
+    i = 0
+    while i < len(args):
+        a, kind, value = args[i], None, None
+        if a in ("-n", "--lines", "-c", "--bytes"):
+            kind = "n" if a in ("-n", "--lines") else "c"
+            value = args[i + 1] if i + 1 < len(args) else ""
+            i += 2
+        elif a.startswith("--lines=") or a.startswith("--bytes="):
+            kind = "n" if a.startswith("--lines=") else "c"
+            value = a.split("=", 1)[1]
+            i += 1
+        elif len(a) > 2 and a[:2] in ("-n", "-c"):
+            kind, value = a[1], a[2:]
+            i += 1
+        elif re.match(r"^-\d+$", a):
+            kind, value = "n", a[1:]
+            i += 1
+        else:
+            i += 1
+            continue
+        count = _parse_count(value)
+        if count is None:
+            continue
+        if kind == "n" and count > MAX_READ_LINES:
+            return LINES_MSG.format(count, MAX_READ_LINES)
+        if kind == "c" and count > MAX_READ_BYTES:
+            return BYTES_MSG.format(count, MAX_READ_BYTES)
+    return None
+
+
+def _sed_parts(args):
+    """(scripts, file operands) for a sed invocation — the same split sed_ok
+    performs, kept separate so its deny decisions stay untouched."""
+    scripts, files, have_e, i = [], [], False, 0
+    while i < len(args):
+        a = args[i]
+        if a.startswith("-") and a != "-":
+            if a in ("-e", "--expression"):
+                if i + 1 < len(args):
+                    scripts.append(args[i + 1])
+                have_e = True; i += 2; continue
+            if a.startswith("-e"):
+                scripts.append(a[2:]); have_e = True; i += 1; continue
+            if a.startswith("--expression="):
+                scripts.append(a.split("=", 1)[1]); have_e = True; i += 1; continue
+            i += 1
+            continue
+        if not have_e and not scripts:
+            scripts.append(a)  # first positional is the script
+        else:
+            files.append(a)
+        i += 1
+    return scripts, files
+
+
+def _sed_span(args):
+    """Lines a quiet sed would print when its script is nothing but plain line
+    ranges, else None — an address regex or an unsuppressed sed streams the
+    whole file, so it falls back to the file-size check."""
+    quiet = "--quiet" in args or "--silent" in args or any(
+        a.startswith("-") and not a.startswith("--") and not a.startswith("-e")
+        and "n" in a[1:] for a in args
+    )
+    if not quiet:
+        return None
+    total = 0
+    for script in _sed_parts(args)[0]:
+        for part in script.split(";"):
+            part = part.strip()
+            if not part:
+                continue
+            m = _SED_RANGE_RE.match(part)
+            if m:
+                start, end = int(m.group(1)), int(m.group(2) or m.group(1))
+                total += max(0, end - start + 1)
+                continue
+            if _SED_QUIT_RE.match(part):
+                continue
+            return None
+    return total
+
+
+def _reader_reason(head, args):
+    if head in ("head", "tail"):
+        return _head_tail_reason(args)
+    if head == "sed":
+        span = _sed_span(args)
+        if span is not None:
+            return None if span <= MAX_READ_LINES else LINES_MSG.format(span, MAX_READ_LINES)
+        files = _sed_parts(args)[1]
+    elif head in FULL_READERS:
+        files = _positionals(args)
+    else:
+        return None
+    for path in files:
+        size = oversize(path)
+        if size:
+            return FILE_MSG.format(path, size // 1024, MAX_READ_BYTES // 1024)
+    return None
+
+
+def bulk_read_reason(cmd):
+    """Deny reason when an already-read-only command would pour a large file
+    into the orchestrator's context, else None. A reader whose output is piped
+    onward is exempt: the downstream stage (head, grep, wc, jq) is what decides
+    the volume, and refusing `cat big | head -20` would be plainly wrong."""
+    try:
+        pairs = scan_pairs(scrub(cmd), 0)
+    except Dangerous:
+        return None  # command_ok already refused it
+    for seg, sep in pairs:
+        if sep == "|":
+            continue
+        try:
+            words = shlex.split(seg, posix=True)
+        except ValueError:
+            continue
+        while words and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", words[0]):
+            words = words[1:]
+        while words and words[0] in KEYWORDS:
+            words = words[1:]
+        if not words:
+            continue
+        reason = _reader_reason(words[0].rsplit("/", 1)[-1], words[1:])
+        if reason:
+            return reason
+    return None
+
+
 def main():
     try:
         cmd = json.load(sys.stdin).get("tool_input", {}).get("command", "")
@@ -840,6 +1024,10 @@ def main():
 
     if not command_ok(cmd, 0):
         deny(explain(cmd))
+
+    bulk = bulk_read_reason(cmd)
+    if bulk:
+        deny(bulk)
 
 
 if __name__ == "__main__":

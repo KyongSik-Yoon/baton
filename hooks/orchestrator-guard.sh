@@ -31,6 +31,17 @@ case "$tool" in
     ;;
   Bash)
     ;;
+  Read)
+    # Not a mutation — a cost guard. Blocking edits saves output tokens; what
+    # the orchestrator reads is where its context (and bill) actually goes.
+    capfilter="$(dirname "$0")/orchestrator-read-cap.py"
+    if command -v python3 >/dev/null 2>&1 && [ -f "$capfilter" ]; then
+      printf '%s' "$input" | python3 "$capfilter"
+    fi
+    # No python3: allow. Unlike the mutation guard, failing open here costs
+    # tokens rather than correctness.
+    exit 0
+    ;;
   *)
     exit 0
     ;;
