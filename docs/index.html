@@ -16,7 +16,7 @@ if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)
 </script>
 <meta property="og:type" content="website">
 <meta property="og:title" content="baton — run your session as a pure orchestrator">
-<meta property="og:description" content="Telling a model to delegate is a suggestion. baton removes the option: while the mode flag exists, the main agent's edits and mutating Bash are denied at the hook layer.">
+<meta property="og:description" content="Telling a model to delegate is a suggestion. baton removes the option: while the mode flag exists, the main agent's edits and mutating Bash are denied at the hook layer, and what it reads into its own context is capped.">
 <meta property="og:url" content="https://kyongsik-yoon.github.io/baton/">
 <meta property="og:image" content="https://kyongsik-yoon.github.io/baton/og.png">
 <meta property="og:image:width" content="2400">
@@ -580,16 +580,18 @@ footer{border-top:1px solid var(--line);padding:44px 0 56px;color:var(--fg-3);fo
           <span lang="ko">권고가 아니라 강제.</span>
         </h2>
         <p lang="en">
-          Two hooks do the whole job. A <code>UserPromptSubmit</code> hook injects the orchestrator
+          Two hooks do the enforcing. A <code>UserPromptSubmit</code> hook injects the orchestrator
           posture each turn so the model delegates by intent rather than by collision. A
-          <code>PreToolUse</code> hook enforces it when intent slips. Subagent calls pass the guard
+          <code>PreToolUse</code> hook enforces it when intent slips — on what the main agent writes,
+          and on how much it reads into its own context. Subagent calls pass the guard
           untouched — and the distinction is structural, not a name check: a subagent's hook input
           carries <code>agent_id</code>, the main agent's never does.
         </p>
         <p lang="ko">
-          훅 두 개가 전부다. <code>UserPromptSubmit</code> 훅이 매 턴 오케스트레이터 태세를 주입해
+          강제는 훅 두 개가 맡는다. <code>UserPromptSubmit</code> 훅이 매 턴 오케스트레이터 태세를 주입해
           모델이 부딪혀서가 아니라 의도적으로 위임하게 만들고, <code>PreToolUse</code> 훅이 그
-          의도가 흔들릴 때 강제한다. 서브에이전트 호출은 가드를 그대로 통과한다 — 이름 비교가 아니라
+          의도가 흔들릴 때 강제한다 — 메인 에이전트가 쓰는 것에도, 자기 컨텍스트로 읽어 들이는
+          양에도. 서브에이전트 호출은 가드를 그대로 통과한다 — 이름 비교가 아니라
           구조적 구분이다: 서브에이전트의 훅 입력에는 <code>agent_id</code>가 실려 오고, 메인
           에이전트에는 절대 실리지 않는다.
         </p>
@@ -618,13 +620,18 @@ footer{border-top:1px solid var(--line);padding:44px 0 56px;color:var(--fg-3);fo
       <div style="display:grid;gap:14px">
         <div class="card">
           <div class="stat" style="font-size:19px"><span lang="en">What still passes</span><span lang="ko">그래도 통과하는 것</span></div>
-          <p lang="en">Read-only inspection (<code>git diff</code>, <code>git log</code>, <code>rg</code>, <code>ls</code>), test/lint/typecheck runs, and the skill's own flag-file commands. You review the diffs and re-run the validation yourself — a worker's report is a claim, not evidence.</p>
-          <p lang="ko">읽기 전용 조회(<code>git diff</code>, <code>git log</code>, <code>rg</code>, <code>ls</code>), 테스트·린트·타입체크 실행, 그리고 스킬 자신의 플래그 파일 명령. 디프를 읽고 검증을 다시 돌리는 것은 오케스트레이터의 몫이다 — 워커의 보고는 증거가 아니라 주장이다.</p>
+          <p lang="en">Read-only inspection (<code>git diff</code>, <code>git log</code>, <code>rg</code>, <code>ls</code>), test/lint/typecheck runs, the skill's own flag-file commands, and one write: the plan-mode plan file under <code>.claude/plans/</code>, because Claude Code's plan mode lets only the main agent write it. You review the diffs and re-run the validation yourself — a worker's report is a claim, not evidence.</p>
+          <p lang="ko">읽기 전용 조회(<code>git diff</code>, <code>git log</code>, <code>rg</code>, <code>ls</code>), 테스트·린트·타입체크 실행, 스킬 자신의 플래그 파일 명령, 그리고 쓰기 하나: <code>.claude/plans/</code> 아래 플랜 모드 플랜 파일 — Claude Code의 플랜 모드가 이 쓰기를 메인 에이전트에게만 허용하기 때문이다. 디프를 읽고 검증을 다시 돌리는 것은 오케스트레이터의 몫이다 — 워커의 보고는 증거가 아니라 주장이다.</p>
         </div>
         <div class="card">
           <div class="stat" style="font-size:19px"><span lang="en">What gets delegated</span><span lang="ko">위임되는 것</span></div>
-          <p lang="en">Every mutation, including <code>git add</code> / <code>commit</code> / <code>push</code>. Each worker gets a narrow packet: objective, evidence as paths rather than dumps, allowed write surface, non-goals, acceptance criteria, validation command.</p>
-          <p lang="ko">모든 변경, <code>git add</code>·<code>commit</code>·<code>push</code>까지. 각 워커는 좁은 패킷을 받는다: 목표, 덤프가 아닌 경로 형태의 근거, 허용된 쓰기 범위, 비목표, 수용 기준, 검증 명령.</p>
+          <p lang="en">Every mutation, including <code>git add</code> / <code>commit</code> / <code>push</code>. Each worker gets a narrow packet: objective, evidence as paths rather than dumps, allowed write surface, non-goals, acceptance criteria, validation command. One worker per packet: a fix within the packet goes back to that worker via SendMessage, while a rewritten objective gets a fresh one.</p>
+          <p lang="ko">모든 변경, <code>git add</code>·<code>commit</code>·<code>push</code>까지. 각 워커는 좁은 패킷을 받는다: 목표, 덤프가 아닌 경로 형태의 근거, 허용된 쓰기 범위, 비목표, 수용 기준, 검증 명령. 패킷 하나에 워커 하나: 패킷 안의 수정은 SendMessage로 그 워커에게 돌려보내고, 목표를 다시 써야 하면 새 워커를 띄운다.</p>
+        </div>
+        <div class="card">
+          <div class="stat" style="font-size:19px"><span lang="en">What gets capped</span><span lang="ko">상한이 걸리는 것</span></div>
+          <p lang="en">Reads. Blocking writes only saves output tokens; an orchestrator's bill is input. A file it pulls in itself stays in context on every later turn, while a scout pays for it once and hands back a summary. So a whole-file read past 64 KB, or a bounded read asking for more than 800 lines, is denied through <code>Read</code> and Bash alike (<code>cat</code>, <code>nl</code>, an unbounded <code>sed</code>, an oversized <code>head -n</code>). A reader piped into a bounding stage (<code>cat big | head -20</code>) passes, and grep output isn't capped. Tune both with <code>BATON_READ_MAX_BYTES</code> and <code>BATON_READ_MAX_LINES</code>.</p>
+          <p lang="ko">읽기. 쓰기를 막아서 아끼는 건 출력 토큰뿐이고, 오케스트레이터의 비용은 입력이 지배한다. 직접 읽어 들인 파일은 이후 모든 턴에서 계속 값을 치르는 컨텍스트가 되지만, 스카우트에게 맡기면 한 번만 치르고 요약만 돌아온다. 그래서 64 KB를 넘는 파일의 통째 읽기, 또는 800줄을 넘게 요청하는 읽기는 <code>Read</code>에서도 Bash(<code>cat</code>, <code>nl</code>, 범위 없는 <code>sed</code>, 과한 <code>head -n</code>)에서도 거부된다. 뒤에서 분량을 자르는 파이프(<code>cat big | head -20</code>)는 통과하고, grep류 출력에는 상한이 없다. 두 상한은 <code>BATON_READ_MAX_BYTES</code>와 <code>BATON_READ_MAX_LINES</code>로 조정한다.</p>
         </div>
       </div>
     </div>
@@ -874,12 +881,14 @@ footer{border-top:1px solid var(--line);padding:44px 0 56px;color:var(--fg-3);fo
         </h2>
         <p lang="en">
           The plugin install is what makes the mode enforce anything — the hooks ship with the
-          plugin. A manual checkout has to wire <code>orchestrator-guard.sh</code> (PreToolUse) and
+          plugin. A manual checkout has to wire <code>orchestrator-guard.sh</code> (PreToolUse, matcher
+          <code>Write|Edit|NotebookEdit|Bash|Read</code>) and
           <code>orchestrator-mode.sh</code> (UserPromptSubmit) into settings itself.
         </p>
         <p lang="ko">
           모드가 실제로 뭔가를 강제하려면 플러그인 설치가 필요하다 — 훅이 플러그인과 함께
-          배포되기 때문이다. 수동 체크아웃은 <code>orchestrator-guard.sh</code>(PreToolUse)와
+          배포되기 때문이다. 수동 체크아웃은 <code>orchestrator-guard.sh</code>(PreToolUse, matcher
+          <code>Write|Edit|NotebookEdit|Bash|Read</code>)와
           <code>orchestrator-mode.sh</code>(UserPromptSubmit)를 settings에 직접 연결해야 한다.
         </p>
       </div>
@@ -926,7 +935,8 @@ footer{border-top:1px solid var(--line);padding:44px 0 56px;color:var(--fg-3);fo
       <div class="cmd"><code>/baton on parent=fable</code><span lang="en">Pick the Fable-parent profile explicitly.</span><span lang="ko">Fable 부모 프로파일을 명시적으로 고른다.</span></div>
       <div class="cmd"><code>/baton advisor none</code><span lang="en">Switch the advisor while staying on.</span><span lang="ko">모드를 유지한 채 advisor만 전환한다.</span></div>
       <div class="cmd"><code>/baton parent fable</code><span lang="en">Switch the parent profile while staying on.</span><span lang="ko">모드를 유지한 채 부모 프로파일만 전환한다.</span></div>
-      <div class="cmd"><code>/baton status</code><span lang="en">Report the flag, the advisor and the parent setting.</span><span lang="ko">플래그·advisor·parent 설정을 보고한다.</span></div>
+      <div class="cmd"><code>/baton style on</code><span lang="en">Opt into a per-model communication style (off by default; <code>style off</code> turns it back off). It's injected at session start, and into subagents whose input carries a model, only for a model with a matching <code>styles/&lt;model-id&gt;.md</code> — <code>claude-opus-5</code> ships with one. A mid-session <code>/model</code> switch isn't followed.</span><span lang="ko">모델별 커뮤니케이션 스타일을 켠다(기본 꺼짐, <code>style off</code>로 다시 끈다). 세션이 시작될 때, 그리고 입력에 모델이 실려 오는 서브에이전트에 주입되며, 맞는 <code>styles/&lt;model-id&gt;.md</code>가 있는 모델에만 발동한다 — <code>claude-opus-5</code>용이 함께 들어 있다. 세션 도중의 <code>/model</code> 전환은 따라가지 않는다.</span></div>
+      <div class="cmd"><code>/baton status</code><span lang="en">Report the flag and the advisor, parent and style settings.</span><span lang="ko">플래그와 advisor·parent·style 설정을 보고한다.</span></div>
       <div class="cmd"><code>/baton off</code><span lang="en">Remove the flag. Enforcement stops the same turn.</span><span lang="ko">플래그를 지운다. 강제는 그 턴부터 멈춘다.</span></div>
     </div>
 
